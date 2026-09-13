@@ -1,0 +1,1 @@
+SELECT mdf_slat_per_m_gbp FROM pricing_config;

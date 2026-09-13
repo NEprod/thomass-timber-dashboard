@@ -1,0 +1,12 @@
+{
+    "kerf": 3,
+    "mastic_unit_price": 2.90,
+    "mastic_linear_coverage": 11.5,
+    "cut_cost_per_strip": 2.00,
+    "delivery_cost": 10.00,
+    "day_rate": 180.00,
+    "hourly_rate": 22.5,
+    "mdf_slat_per_m_gbp": 4.90,
+    "bead_per_m_gbp": 4,
+    "dado_per_m_gbp": 6.5
+}

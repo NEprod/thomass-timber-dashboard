@@ -1,0 +1,1 @@
+SELECT bead_per_m_gbp FROM pricing_config;

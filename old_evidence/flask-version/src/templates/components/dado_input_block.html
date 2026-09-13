@@ -1,0 +1,33 @@
+<h5 class="mb-3">Dado Panelling Options</h5>
+
+<div id="dado-input-block" class="border p-3 rounded mb-4">
+  <div class="row mb-3">
+    <div class="col-6" id="middle_dado_group">
+      <label for="middle_dado" class="form-label">Middle Dado</label>
+      <select id="middle_dado" class="form-select form-select-sm">
+        <!-- Populated dynamically -->
+      </select>
+    </div>
+    <div class="col-6" id="gap_width_group">
+      <label for="gap_width" class="form-label">Gap Width</label>
+      <select id="gap_width" name="gap_width" class="form-select form-select-sm">
+        <option value="70mm">70mm</option>
+        <option value="75mm">75mm</option>
+        <option value="80mm">80mm</option>
+        <option value="85mm">85mm</option>
+        <option value="90mm">90mm</option>
+        <option value="95mm">95mm</option>
+        <option value="100mm" selected>100mm</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="col-12" id="square_dado_group">
+    <label for="square_dado" class="form-label">Square Dado</label>
+    <select id="square_dado" class="form-select form-select-sm">
+      <!-- Populated dynamically -->
+    </select>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/populate_middle_dado.js') }}"></script>
+<script src="{{ url_for('static', filename='js/populate_square_dado.js') }}"></script>

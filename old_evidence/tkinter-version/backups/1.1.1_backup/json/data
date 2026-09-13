@@ -1,0 +1,24 @@
+{
+    "type": {
+        "internal": {
+            "glass_bead": {
+                "9x9mm": {"length_mm": 2400, "thickness_mm": 9, "width_mm": 9, "price": 2.8, "label": "9x9mm Pine Glass Bead 2.4m"},
+                "12x9mm": {"length_mm": 2400, "thickness_mm": 9, "width_mm": 12, "price": 3, "label": "12x9mm Pine Glass Bead 2.4m"},
+                "15x9mm": {"length_mm": 2400, "thickness_mm": 9, "width_mm": 15, "price": 3.2, "label": "15x9mm Pine Glass Bead 2.4m"}
+            },
+            "barrel": {
+                "21x9mm": {"length_mm": 2400, "thickness_mm": 9, "width_mm": 21, "price": 4, "label": "21x9mm Pine Barrel 2.4m"},
+                "34x12mm": {"length_mm": 2400, "thickness_mm": 12, "width_mm": 34, "price": 5.2, "label": "34x12mm Pine Barrel 2.4m"}
+            }
+        },
+        "external": {
+            "astragal": {
+                "21x8mm": {"length_mm": 2400, "thickness_mm": 8, "width_mm": 21, "price": 4, "label": "21x8mm Pine Astragal 2.4m"},
+                "34x12mm": {"length_mm": 2400, "thickness_mm": 12, "width_mm": 34, "price": 6, "label": "34x12mm Pine Astragal 2.4m"}
+            },
+            "dec_cover": {
+                "34x12mm": {"length_mm": 2400, "thickness_mm": 12, "width_mm": 34, "price": 6.2, "label": "34x12mm Pine Decorative Cover 2.4m"}
+            }
+        }
+    }
+}

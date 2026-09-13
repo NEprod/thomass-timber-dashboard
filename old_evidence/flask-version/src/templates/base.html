@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Thomas's Timber - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ✅ Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Bootstrap JS (optional for dropdowns, modals, etc.) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Your custom styles (must go after Bootstrap to override) -->
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">Thomas’s Timber</div>
+        <input type="text" class="search-bar" placeholder="Search...">
+        <div class="burger" onclick="toggleSidebar()">☰</div>
+    </header>
+
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <nav>
+                <ul>
+                    <li><strong>Dashboard</strong>
+                        <ul>
+                            <li><a href="{{ url_for('quote_form') }}">New Quote</a></li>
+                            <li>Retrieve Quote</li>
+                        </ul>
+                    </li>
+                    <li><strong>Calendar</strong></li>
+                    <li><strong>Prices</strong>
+                        <ul>
+                            <li>MDF Options</li>
+                            <li>Dado Options</li>
+                            <li>Moulding Options</li>
+                            <li>Price Settings</li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            {% block content %}
+            <h1>Welcome to Thomas's Timber</h1>
+            <p>Select a section from the left to begin.</p>
+            {% endblock %}
+        </main>
+    </div>
+
+    <footer class="app-footer">
+        Created by Dale Thomas · Thomas’s Timber
+    </footer>
+
+    <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/full_wall_calc.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/full_wall_materials_totals.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/job_totals.js') }}"></script>
+</body>
+</html>

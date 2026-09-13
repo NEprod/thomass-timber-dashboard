@@ -1,0 +1,17 @@
+<div id="full-wall-measurements" class="bordered-block mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0">Full Wall Measurements</h5>
+    <div>
+      <button type="button" class="btn btn-sm btn-outline-primary me-2" id="add-wall-section">+ Section</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="remove-wall-section">− Section</button>
+    </div>
+  </div>
+
+  <div id="full-wall-sections">
+    <!-- Hidden template for wall section -->
+    <template id="full-wall-section-template">
+      {% include "components/full_wall_section_input_block.html" %}
+    </template>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/full_wall_section.js') }}"></script>

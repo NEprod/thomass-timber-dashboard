@@ -1,0 +1,51 @@
+{
+  "glass_bead": {
+    "9x9": {
+      "label": "9x9mm Pine Glass Bead 2.4m",
+      "price": 2.8,
+      "dimensions_mm": {
+        "width": 9,
+        "thickness": 9,
+        "length": 2400
+      }
+    },
+    "12x9": {
+      "label": "12x9mm Pine Glass Bead 2.4m",
+      "price": 3,
+      "dimensions_mm": {
+        "width": 12,
+        "thickness": 9,
+        "length": 2400
+      }
+    },
+    "15x9": {
+      "label": "15x9mm Pine Glass Bead 2.4m",
+      "price": 3.2,
+      "dimensions_mm": {
+        "width": 15,
+        "thickness": 9,
+        "length": 2400
+      }
+    }
+  },
+  "barrel": {
+    "21x9": {
+      "label": "21x9mm Pine Barrel 2.4m",
+      "price": 4,
+      "dimensions_mm": {
+        "width": 21,
+        "thickness": 9,
+        "length": 2400
+      }
+    },
+    "34x12": {
+      "label": "34x12mm Pine Barrel 2.4m",
+      "price": 5.2,
+      "dimensions_mm": {
+        "width": 34,
+        "thickness": 12,
+        "length": 2400
+      }
+    }
+  }
+}

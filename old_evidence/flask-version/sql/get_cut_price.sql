@@ -1,0 +1,1 @@
+SELECT cut_cost_per_strip FROM pricing_config;

@@ -1,0 +1,1 @@
+SELECT mastic_unit_price FROM pricing_config

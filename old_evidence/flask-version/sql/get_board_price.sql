@@ -1,0 +1,1 @@
+SELECT price FROM mdf_options WHERE thickness_mm = :thickness;

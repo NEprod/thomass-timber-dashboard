@@ -1,0 +1,1 @@
+SELECT price FROM moulding_options WHERE label = :moulding_type;

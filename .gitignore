@@ -5,5 +5,10 @@ __pycache__/
 instance/
 .local-data/
 .DS_Store
-# Immutable recovery evidence, including nested historical repositories.
-old_evidence/
+# Historical source/configuration is tracked without changing its bytes.
+old_evidence/**/.git/
+old_evidence/**/.vscode/
+.env
+data/
+uploads/
+*.log

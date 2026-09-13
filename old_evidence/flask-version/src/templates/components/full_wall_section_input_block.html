@@ -1,0 +1,56 @@
+<div>
+  <h6 class="section-title mb-3">Wall Section <span class="section-number">1</span></h6>
+  <div class="row g-3">
+    <!-- Wall Length and Height -->
+    <div class="col-6 mb-3">
+      <label class="form-label">Wall Length (mm)</label>
+      <input type="number" class="form-control form-control-sm" name="wall_length">
+    </div>
+    <div class="col-6 mb-3">
+        <label class="form-label">Wall Height (mm)</label>
+        <input type="number" class="form-control form-control-sm" name="wall_height">
+    </div>
+
+    <!-- Horizontal and Vertical Squares -->
+    <div class="col-6 mb-3">
+      <label class="form-label">Horizontal Squares</label>
+      <input type="number" class="form-control form-control-sm" name="horz_squares">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Vertical Squares</label>
+      <input type="number" class="form-control form-control-sm" name="vert_squares">
+    </div>
+
+    <!-- Square Width and Height (readonly) -->
+    <div class="col-6 mb-3">
+      <label class="form-label">Square Width (mm)</label>
+      <input type="text" class="form-control form-control-sm" name="square_width" readonly>
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Square Height (mm)</label>
+      <input type="text" class="form-control form-control-sm" name="square_height" readonly>
+    </div>
+
+    <!-- Horizontal and Vertical Strips -->
+    <div class="col-6 mb-3">
+      <label class="form-label">Hor Strips Needed</label>
+      <input type="text" class="form-control form-control-sm" name="horz_strips" readonly>
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Vert Strips Needed</label>
+      <input type="text" class="form-control form-control-sm" name="vert_strips" readonly>
+    </div>
+
+    <!-- Pieces Per Strip -->
+    <div class="col-6 mb-3">
+      <label class="form-label">Horz Pieces Per</label>
+      <input type="text" class="form-control form-control-sm" name="horz_pieces_per_strip" readonly>
+    </div>
+
+    <!-- Bead Strips (optional group, hidden by default) -->
+    <div class="col-6 mb-3 bead-group d-none">
+      <label class="form-label">Bead Strips Needed</label>
+      <input type="text" class="form-control form-control-sm" name="bead_strips" readonly>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,51 @@
+<h5 class="mt-4 mb-3">Material Totals – Full Wall</h5>
+
+<div id="full-wall-materials-block" class="border p-3 rounded mb-4">
+  <div class="row g-3">
+    <div class="col-6 mb-3">
+      <label class="form-label">Total Strips Needed</label>
+      <input type="text" class="form-control form-control-sm" readonly id="total_hv_strips">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Boards Needed</label>
+      <input type="text" class="form-control form-control-sm" readonly id="boards_needed">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Board Cost</label>
+      <input type="text" class="form-control form-control-sm" readonly id="board_cost">
+    </div>
+    <div class="col-6 mb-3 bead-only d-none">
+      <label class="form-label">Total Beads Needed</label>
+      <input type="text" class="form-control form-control-sm" readonly id="beads_needed">
+    </div>
+    <div class="col-6 mb-3 bead-only d-none">
+      <label class="form-label">Bead Cost</label>
+      <input type="text" class="form-control form-control-sm" readonly id="bead_cost">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">L/M Panelling</label>
+      <input type="text" class="form-control form-control-sm" readonly id="linear_meterage_panelling">
+    </div>
+    <div class="col-6 mb-3 bead-only d-none">
+      <label class="form-label">L/M Bead</label>
+      <input type="text" class="form-control form-control-sm" readonly id="linear_meterage_beading">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Mastic Needed</label>
+      <input type="text" class="form-control form-control-sm" readonly id="mastic_needed">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Mastic Cost</label>
+      <input type="text" class="form-control form-control-sm" readonly id="mastic_cost">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Cut Cost</label>
+      <input type="text" class="form-control form-control-sm" readonly id="cut_cost">
+    </div>
+    <div class="col-6 mb-3">
+      <label class="form-label">Delivery Cost</label>
+      <input type="text" class="form-control form-control-sm" readonly id="delivery_cost">
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/update_full_material_visibility.js') }}"></script>

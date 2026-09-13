@@ -1,0 +1,1 @@
+SELECT mastic_linear_coverage FROM pricing_config

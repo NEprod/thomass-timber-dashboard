@@ -1,0 +1,1 @@
+SELECT delivery_cost FROM pricing_config;

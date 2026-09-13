@@ -1,0 +1,12 @@
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h5 class="mt-4 mb-3">Cutlist</h5>
+  <div>
+    <button id="generate_cutlist" type="button" class="btn btn-sm btn-outline-primary me-2">View Cut List</button>
+    <button id="copy_cutlist" type="button" class="btn btn-sm btn-outline-danger">Copy to Clipboard</button>
+  </div>
+</div>
+<div class="border p-3 rounded mb-4" id="cutlist-block">
+  <pre id="cutlist_display" style="background:#111;color:#eee;padding:10px;overflow:auto;max-height:300px;font-family:monospace;"></pre>
+</div>
+<script src="{{ url_for('static', filename='js/cutlist_display.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cutlist_copy.js') }}"></script>

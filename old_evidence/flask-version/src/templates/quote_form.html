@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Quote Form</h2>
+
+<form id="quote-form" class="quote-form">
+    {% include "components/job_status_block.html" %}
+    {% include "components/customer_details_block.html" %}
+    {% include "components/job_type_block.html" %}
+    {% include "components/panelling_type_block.html" %}
+    <div id="square-options" class="option-block bordered-block">
+        {% include "components/square_input_block.html" %}
+    </div>
+    <div id="dado-options" class="option-block bordered-block">
+        {% include "components/dado_input_block.html" %}
+    </div>
+    <div id="full-wall-options" class="option-block bordered-block">
+        {% include "components/full_wall_measurements_block.html" %}
+    </div>
+    <div id="full-wall-materials" class="option-block bordered-block">
+        {% include "components/full_wall_material_totals_block.html" %}
+    </div>
+    <div id="job-totals" class="option-block bordered-block">
+        {% include "components/job_totals_block.html" %}
+    </div>
+    <div id="cutlist" class="option-block bordered-block">
+        {% include "components/cutlist_block.html" %}
+    </div>
+</form>
+<script src="{{ url_for('static', filename='js/panel_type_logic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/update_panel_visibility.js') }}"></script>
+{% endblock %}

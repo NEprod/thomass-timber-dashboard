@@ -1,0 +1,23 @@
+{
+  "mdf": {
+    "6mm":
+      { 
+        "label": "MDF Full 6mm Sheet (2440x1220)",
+        "price": 15,
+        "dimensions_mm": { "width": 1220, "length": 2440, "thickness": 6 }
+        
+      },
+    "9mm":
+      {
+        "label": "MDF Full 9mm Sheet (2440x1220)",
+        "price": 18,
+        "dimensions_mm": { "width": 1220, "length": 2440, "thickness": 9 }
+      },
+    "12mm":
+      {
+        "label": "MDF Full 12mm Sheet (2440x1220)",
+        "price": 22,
+        "dimensions_mm": { "width": 1220, "length": 2440, "thickness": 12 }
+      }
+  }
+}

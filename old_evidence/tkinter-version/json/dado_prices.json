@@ -1,0 +1,44 @@
+{
+  "dado": {
+    "45mm": {
+      "variants": {
+        "4.8m": { "length_mm": 4800, "thickness_mm": 20, "width_mm": 45, "price": 11, "label": "45mm Dado 4.8m" },
+        "4.5m": { "length_mm": 4500, "thickness_mm": 20, "width_mm": 45, "price": 10.4, "label": "45mm Dado 4.5m" },
+        "4.2m": { "length_mm": 4200, "thickness_mm": 20, "width_mm": 45, "price": 9.7, "label": "45mm Dado 4.2m" },
+        "3.6m": { "length_mm": 3600, "thickness_mm": 20, "width_mm": 45, "price": 8.6, "label": "45mm Dado 3.6m" },
+        "3m": { "length_mm": 3000, "thickness_mm": 20, "width_mm": 45, "price": 7.2, "label": "45mm Dado 3m" },
+        "2.7m": { "length_mm": 2700, "thickness_mm": 20, "width_mm": 45, "price": 6.5, "label": "45mm Dado 2.7m" },
+        "2.4m": { "length_mm": 2400, "thickness_mm": 20, "width_mm": 45, "price": 5.6, "label": "45mm Dado 2.4m" },
+        "2.1m": { "length_mm": 2100, "thickness_mm": 20, "width_mm": 45, "price": 4.8, "label": "45mm Dado 2.1m" },
+        "1.8m": { "length_mm": 1800, "thickness_mm": 20, "width_mm": 45, "price": 5.6, "label": "45mm Dado 1.8m" },
+        "1.5m": { "length_mm": 1500, "thickness_mm": 20, "width_mm": 45, "price": 3.4, "label": "45mm Dado 1.5m" }
+      }
+    },
+    "70mm": {
+      "variants": {
+        "4.8m": { "length_mm": 4800, "thickness_mm": 20, "width_mm": 70, "price": 16.4, "label": "70mm Dado 4.8m" },
+        "4.5m": { "length_mm": 4500, "thickness_mm": 20, "width_mm": 70, "price": 15.3, "label": "70mm Dado 4.5m" },
+        "4.2m": { "length_mm": 4200, "thickness_mm": 20, "width_mm": 70, "price": 14.3, "label": "70mm Dado 4.2m" },
+        "3.6m": { "length_mm": 3600, "thickness_mm": 20, "width_mm": 70, "price": 12.6, "label": "70mm Dado 3.6m" },
+        "3m": { "length_mm": 3000, "thickness_mm": 20, "width_mm": 70, "price": 10.5, "label": "70mm Dado 3m" },
+        "2.7m": { "length_mm": 2700, "thickness_mm": 20, "width_mm": 70, "price": 9.5, "label": "70mm Dado 2.7m" },
+        "2.4m": { "length_mm": 2400, "thickness_mm": 20, "width_mm": 70, "price": 8.2, "label": "70mm Dado 2.4m" },
+        "2.1m": { "length_mm": 2100, "thickness_mm": 20, "width_mm": 70, "price": 7.2, "label": "70mm Dado 2.1m" },
+        "1.8m": { "length_mm": 1800, "thickness_mm": 20, "width_mm": 70, "price": 6.2, "label": "70mm Dado 1.8m" },
+        "1.5m": { "length_mm": 1500, "thickness_mm": 20, "width_mm": 70, "price": 5.1, "label": "70mm Dado 1.5m" }
+      }
+    }
+  },
+  "astragal": {
+    "variants": {
+        "21x8mm": {"length_mm": 2400, "thickness_mm": 8, "width_mm": 21, "price": 4, "label": "21x8mm Pine Astragal 2.4m"},
+        "34x12mm": {"length_mm": 2400, "thickness_mm": 12, "width_mm": 34, "price": 6, "label": "34x12mm Pine Astragal 2.4m"
+      }
+    }
+  },
+  "decorative_cover": {
+    "variants": {
+        "34x12mm": {"length_mm": 2400, "thickness_mm": 12, "width_mm": 34, "price": 6.2, "label": "34x12mm Pine Decorative Cover 2.4m"}
+    }
+  }
+}

@@ -1,0 +1,1 @@
+SELECT hourly_rate FROM pricing_config;

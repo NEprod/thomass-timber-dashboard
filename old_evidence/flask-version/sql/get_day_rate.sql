@@ -1,0 +1,1 @@
+SELECT day_rate FROM pricing_config;
