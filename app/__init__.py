@@ -23,11 +23,12 @@ def sqlite_pragmas(connection, record):
 
 def create_app(test_config=None):
     app=Flask(__name__)
-    data=Path(os.environ.get('TIMBER_DATA_DIR',Path(app.root_path).parent/'.local-data')).resolve()
+    data=Path(os.environ.get('TIMBER_DATA_DIR') or os.environ.get('DATA_DIR') or Path(app.root_path).parent/'.local-data').resolve()
     app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:///'+str(data/'timber.db'),SQLALCHEMY_TRACK_MODIFICATIONS=False,
                       SECRET_KEY=os.environ.get('SECRET_KEY'),SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Lax',
                       SESSION_COOKIE_SECURE=os.environ.get('TIMBER_SECURE_COOKIES')=='1',PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-                      MAX_CONTENT_LENGTH=1024*1024,DATA_DIR=str(data))
+                      MAX_CONTENT_LENGTH=1024*1024,DATA_DIR=str(data),DEBUG=False,
+                      UPLOAD_DIR=str(Path(os.environ.get('UPLOAD_DIR',data/'uploads')).resolve()))
     if test_config:app.config.update(test_config)
     if not app.config.get('TESTING'):
         data.mkdir(parents=True,exist_ok=True)
@@ -38,6 +39,8 @@ def create_app(test_config=None):
                 with os.fdopen(fd,'w') as f:f.write(secrets.token_hex(32))
             except FileExistsError:pass
             app.config['SECRET_KEY']=key_file.read_text().strip()
+        if os.environ.get('TIMBER_ENV')=='production' and len(app.config['SECRET_KEY'])<32:
+            raise RuntimeError('Production SECRET_KEY must contain at least 32 characters; check the environment or persistent session.key.')
     db.init_app(app);login.init_app(app);csrf.init_app(app)
     migrate.init_app(app,db,directory=str(Path(app.root_path).parent/'migrations'))
     login.login_view='web.login_view'

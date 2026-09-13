@@ -1,0 +1,16 @@
+**
+!requirements.txt
+!requirements.lock
+!app/
+!app/**
+!migrations/
+!migrations/**
+!docker/
+!docker/**
+**/__pycache__
+**/*.py[cod]
+**/.DS_Store
+**/*.db
+**/*.sqlite*
+**/*.log
+**/.env

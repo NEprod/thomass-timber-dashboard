@@ -37,11 +37,15 @@ def date_value(name, with_time=False):
 
 @web.before_app_request
 def first_run_guard():
-    if request.endpoint=='static':return
+    if request.endpoint in ('static','web.health'):return
     if not inspect(db.engine).has_table('user'):
         return render_template('uninitialized.html'),503
     if not db.session.scalar(db.select(User.id).limit(1)) and request.endpoint!='web.setup':
         return redirect(url_for('web.setup'))
+
+@web.get('/health')
+def health():
+    return {'status':'ok'}
 
 @web.app_context_processor
 def shared():return dict(types=TYPES,subtypes=SUBTYPES,statuses=STATUSES)
