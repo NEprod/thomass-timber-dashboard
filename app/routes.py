@@ -7,7 +7,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm.exc import StaleDataError
 from .models import db, User, Customer, Quote, Room, WorkItem, Material, PricingConfig, now
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
-from .calculations.dado import USES, rail_choices
+from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
 from .calculations.packing import number, CalculationError
 from .services.quotes import current_snapshot, recalculate_item, reaggregate, refresh_prices
 
@@ -49,7 +49,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(types=TYPES,subtypes=SUBTYPES,dado_styles=DADO_STYLES,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES)
+def shared():return dict(types=TYPES,subtypes=SUBTYPES,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
@@ -191,6 +191,8 @@ def quote_edit(quote_id):
                     if not item:abort(404)
                     if action=='delete_item':room.items.remove(item)
                     else:
+                        if field('type').startswith('DADO_') and field('subtype') not in SUPPORTED_DADO_STYLES:
+                            raise CalculationError('This dado style is coming later. The saved item and its results have been kept unchanged; choose an available style explicitly to replace it.')
                         item.name=field('name',True);item.type=field('type');item.subtype=field('subtype')
                         item.notes=field('notes',limit=5000)
                         item.position=int(number(request.form.get('position',0),'Item order',allow_zero=True,maximum=1000))

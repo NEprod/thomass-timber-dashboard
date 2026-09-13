@@ -23,15 +23,15 @@ def test_continuous_longest_same_profile_splitting_and_labels(catalogue):
     assert catalogue[group['material_id']]['width_mm']==45
     assert len(group['cuts'])==1
     longer=dado(catalogue,6000)
-    group=next(iter(longer['groups'].values()))
-    assert [c['length_mm'] for c in group['cuts']]==[4800,1200]
-    assert len(group['strips'])==2
-    assert len({c['join_id'] for c in group['cuts']})==1
-    assert all(c['work_item_id']=='dado-1' and 'segment' in c['label'] for s in group['strips'] for c in s['cuts'])
-    assert sum(s['remainder_mm']+s['kerf_loss_mm']+sum(c['length_mm'] for c in s['cuts']) for s in group['strips'])==9600
+    cuts=[c for g in longer['groups'].values() for c in g['cuts']]
+    assert [c['length_mm'] for c in cuts]==[4800,1200]
+    assert sum(len(g['strips']) for g in longer['groups'].values())==2
+    assert len({c['join_id'] for c in cuts})==1
+    assert all(c['work_item_id']=='dado-1' and 'segment' in c['label'] for c in cuts)
+    assert sum(catalogue[g['material_id']]['length_mm']*len(g['strips']) for g in longer['groups'].values())==6300
 
 
-@pytest.mark.parametrize('style',DADO_STYLES[1:])
+@pytest.mark.parametrize('style',['Dado Squares Bottom'])
 def test_gap_frames_and_explicit_nested_layout(catalogue,style):
     result=dado(catalogue,3000,style)
     frames=result['geometry']['frames']
@@ -42,8 +42,9 @@ def test_gap_frames_and_explicit_nested_layout(catalogue,style):
     if layers==2:
         assert frames[1]['width_mm']==425 and frames[1]['height_mm']==600
     group=result['groups']['dado_dado-45mm-3m']
-    assert len(group['cuts'])==len(frames)*4
-    assert all('square' in c['label'] and c['angle_information']['start_joint_setting']==45 for c in group['cuts'])
+    square_cuts=[c for c in group['cuts'] if c['angle_information'].get('dado_role')=='square']
+    assert len(square_cuts)==len(frames)*4
+    assert all('square' in c['label'] and c['angle_information']['start_joint_setting']==45 for c in square_cuts)
     zero=dado(catalogue,3000,style,kerf=0)
     assert zero['geometry']==result['geometry']
     assert [c['length_mm'] for c in zero['groups']['dado_dado-45mm-3m']['cuts']]==[c['length_mm'] for c in group['cuts']]
@@ -60,7 +61,7 @@ def test_compatibility_and_invalid_demands(catalogue):
     with pytest.raises(CalculationError): dado(catalogue,-1)
     with pytest.raises(CalculationError): dado(catalogue,200,'Dado Squares Bottom')
     inputs=dict(wall_length=3000,gap_width=100,bottom_squares=4,bottom_zone_height=1000,inner_inset=40)
-    with pytest.raises(CalculationError,match='overlap'):
+    with pytest.raises(CalculationError,match='coming later'):
         calculate('DADO_STRAIGHT','Dado Double Squares Bottom',inputs,{'dado_rail_id':'dado-45mm-3m','dado_square_id':'dado-45mm-3m'},catalogue,3)
 
 
@@ -70,23 +71,23 @@ def test_quote_pools_identical_dado_stock_and_prices_installed_labour(catalogue,
         for cut in group['cuts']:cut['work_item_id']='second'
     totals=aggregate([first,second],catalogue,seed_data['pricing'])
     row=totals['materials'][0]
-    assert row['required_m']==4 and row['new_purchase_units']==1
-    assert row['remainder_m']==.797 and row['kerf_loss_mm']==3
-    assert row['cost']==catalogue[row['material_id']]['price']
+    assert row['required_m']==4 and row['new_purchase_units']==2
+    assert row['remainder_m']==.2 and row['kerf_loss_mm']==0
+    assert row['cost']==2*catalogue[row['material_id']]['price']
     assert totals['labour_cost']==4*seed_data['pricing']['dado_per_m_gbp']
-    assert {c['work_item_id'] for c in row['stocks'][0]['cuts']}=={'dado-1','second'}
+    assert {c['work_item_id'] for stock in row['stocks'] for c in stock['cuts']}=={'dado-1','second'}
 
 
 def test_stair_dado_reuses_geometry_and_segment_boundaries(catalogue):
     inputs=dict(STAIR,gap_width=100)
     result=calculate('DADO_STAIR','Dado',inputs,{'dado_rail_id':'dado-45mm-3m'},catalogue,3)
     original=calculate('PANELLING_STAIR_HALF','plain',STAIR,OPTIONS,catalogue,3)
-    assert {k:result['geometry'][k] for k in original['geometry']}==original['geometry']
-    cuts=next(iter(result['groups'].values()))['cuts']
-    assert [c['length_mm'] for c in cuts]==[250,1200,250]
-    assert [c['role'] for c in cuts]==['Lower landing dado','Slope dado','Upper landing dado']
-    assert cuts[1]['angle_information']['start_joint_setting']==16.78
-    assert cuts[1]['angle_information']['end_joint_setting']==16.78
+    assert all(result['geometry'][k]==original['geometry'][k] for k in ['horizontal_run','slope_angle','slope_mitre','top_angle_setting','bottom_angle_setting'])
+    cuts=[c for g in result['groups'].values() for c in g['cuts']]
+    by_role={c['role']:c for c in cuts}
+    assert {k:c['length_mm'] for k,c in by_role.items()}=={'Lower landing dado':250,'Slope dado':1200,'Upper landing dado':250}
+    assert by_role['Slope dado']['angle_information']['start_joint_setting']==16.78
+    assert by_role['Slope dado']['angle_information']['end_joint_setting']==16.78
     assert all(c['allowance_mm']==0 for c in cuts)
 
 

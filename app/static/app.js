@@ -30,21 +30,22 @@ for (const form of document.querySelectorAll('.item-form')) {
     for (const option of finish.options) {
       option.disabled = option.dataset.family !== (dado ? 'dado' : 'panelling') ||
         (type.value === 'PANELLING_FULL' && option.value.includes('ledge')) ||
-        (type.value === 'DADO_STAIR' && option.value !== 'Dado');
+        (dado && !['Dado','Dado Squares Bottom'].includes(option.value));
     }
-    if (finish.selectedOptions[0]?.disabled) finish.value = dado ? 'Dado' : 'plain';
+    if (finish.selectedOptions[0]?.dataset.family !== (dado ? 'dado' : 'panelling') || (type.value === 'PANELLING_FULL' && finish.value.includes('ledge'))) finish.value = dado ? 'Dado' : 'plain';
     const show = (selector, visible) => form.querySelectorAll(selector).forEach(el => el.hidden = !visible);
     show('.stair-fields', stair);
+    show('.mdf-stair-note', !dado);
     show('.bead-fields', !dado && finish.value.includes('bead'));
     show('.ledge-fields', !dado && finish.value.includes('ledge'));
     show('.dado-toggle-fields', !dado);
     show('.rail-fields', dado || form.elements.dado_enabled.checked);
-    show('.dado-gap-fields', dado && (stair || finish.value !== 'Dado'));
+    show('.dado-gap-fields', dado && finish.value !== 'Dado');
     show('.dado-layout-fields', dado && finish.value !== 'Dado');
     show('.dado-top-fields', finish.value.includes('Top & Bottom'));
     show('.dado-inner-fields', finish.value.includes('Double'));
     for (const name of ['slat_width','mdf_id']) form.elements[name].closest('label').hidden = dado;
-    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado && !stair;
+    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado;
     const use = stair ? 'stair_dado' : 'continuous_dado';
     for (const option of form.elements.dado_rail_id.options) option.disabled = !!option.value && !option.dataset.uses.split(' ').includes(use);
 

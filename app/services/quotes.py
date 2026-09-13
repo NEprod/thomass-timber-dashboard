@@ -27,6 +27,9 @@ def reaggregate(quote):
 
 
 def refresh_prices(quote):
+    from ..calculations.dado import SUPPORTED_DADO_STYLES
+    if any(i.type.startswith('DADO_') and i.subtype not in SUPPORTED_DADO_STYLES for r in quote.rooms for i in r.items):
+        raise CalculationError('A saved quote contains a dado style coming later. Its snapshot and results are retained. Explicitly resolve that item before refreshing prices.')
     quote.snapshot=current_snapshot()
     for room in quote.rooms:
         for item in room.items: recalculate_item(item,quote.snapshot)

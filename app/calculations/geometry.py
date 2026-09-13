@@ -6,8 +6,7 @@ from .packing import CalculationError, number
 
 WORKSHOP_ALLOWANCE_MM = 30
 
-def stair_geometry(wall_length, panel_height, lower_landing, upper_landing,
-                   slope_length, horizontal_squares, vertical_squares, slat_width):
+def _stair_angles(wall_length, lower_landing, upper_landing, slope_length):
     run = wall_length - lower_landing - upper_landing
     if run <= 0 or slope_length < run:
         raise CalculationError('Slope must be at least the positive horizontal run (wall minus both landings).')
@@ -15,6 +14,19 @@ def stair_geometry(wall_length, panel_height, lower_landing, upper_landing,
     degrees = round(math.degrees(rad), 2)
     acute = round(90-degrees, 2)
     obtuse = round(180-acute, 2)
+    return rad, dict(horizontal_run=run,slope_angle=degrees,slope_mitre=round(90-(180-degrees)/2,2),
+                     acute_included_angle=acute,obtuse_included_angle=obtuse,
+                     top_angle_setting=round(90-acute/2,2),bottom_angle_setting=round(90-obtuse/2,2),
+                     angle_convention='Historical displayed cut settings; physical saw orientation unverified')
+
+
+def stair_route_geometry(wall_length, lower_landing, upper_landing, slope_length):
+    return _stair_angles(wall_length, lower_landing, upper_landing, slope_length)[1]
+
+
+def stair_geometry(wall_length, panel_height, lower_landing, upper_landing,
+                   slope_length, horizontal_squares, vertical_squares, slat_width):
+    rad, angles = _stair_angles(wall_length, lower_landing, upper_landing, slope_length)
     sw = round((wall_length-(horizontal_squares+1)*slat_width)/horizontal_squares,2)
     sh = round((panel_height-(vertical_squares+1)*slat_width)/vertical_squares,2)
     number(sw, 'Square width'); number(sh, 'Square height')
@@ -33,10 +45,7 @@ def stair_geometry(wall_length, panel_height, lower_landing, upper_landing,
             kind = 'angled'
         layout.append({'index':i+1,'center_x':center,'type':kind})
         used += slat_width+sw
-    return dict(horizontal_run=run,slope_angle=degrees,slope_mitre=round(90-(180-degrees)/2,2),
-                acute_included_angle=acute,obtuse_included_angle=obtuse,
-                top_angle_setting=round(90-acute/2,2),bottom_angle_setting=round(90-obtuse/2,2),
-                angle_convention='Historical displayed cut settings; physical saw orientation unverified',
+    return dict(**angles,
                 square_width=sw,square_height=sh,angled_square_width=aw,angled_square_height=ah,
                 vertical_height=vertical,angled_vertical_height=round(vertical/math.cos(rad),2),
                 columns=layout,counts={k:sum(c['type']==k for c in layout) for k in ('flat','angled','transition')})

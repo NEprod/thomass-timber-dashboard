@@ -5,7 +5,10 @@ nested-frame inset are explicit measurements, not inferred legacy formulas.
 """
 from dataclasses import asdict
 from .packing import CalculationError, number, split_run, pack
-from .geometry import stair_geometry
+from .geometry import stair_geometry, stair_route_geometry
+from .stair_bead import bead_edges
+
+SUPPORTED_DADO_STYLES = ('Dado', 'Dado Squares Bottom')
 
 USES = {'continuous_dado': 'Continuous dado rail', 'square_dado': 'Square dado frames',
         'stair_dado': 'Stair dado rail'}
@@ -45,15 +48,18 @@ class DadoCuts:
         self.groups = {}
         self.serial = 0
 
-    def add(self, material, role, length, *, angles=None):
+    def add(self, material, role, length, *, angles=None, stock_choices=None):
         from .sections import Cut
         pieces = split_run(length, material['length_mm'])
         if self.serial + len(pieces) > 20000:
             raise CalculationError('Too many dado cuts in one calculation.')
         run_id = f'{self.work_item_id}:dado:{self.serial + 1}'
-        group = self.groups.setdefault('dado_' + material['id'],
-                                       {'material_id': material['id'], 'width_mm': material['width_mm'], 'cuts': []})
         for index, piece in enumerate(pieces, 1):
+            if stock_choices:
+                material = min((p for p in stock_choices if p['length_mm'] >= piece),
+                               key=lambda p: (p['length_mm'], p['price'], p['id']))
+            group = self.groups.setdefault('dado_' + material['id'],
+                                           {'material_id': material['id'], 'width_mm': material['width_mm'], 'cuts': []})
             self.serial += 1
             settings = dict(angles or {}, segment=index, segments=len(pieces))
             if 'start_joint_setting' in settings and index > 1:
@@ -78,8 +84,12 @@ class DadoCuts:
 def rail(cuts, inputs, options, catalogue, *, geometry=None):
     product = product_for(catalogue, options.get('dado_rail_id'),
                           'stair_dado' if geometry else 'continuous_dado', longest=True)
+    use = 'stair_dado' if geometry else 'continuous_dado'
+    choices = [p for p in catalogue.values() if p['category']=='dado' and p.get('active',True)
+               and use in p.get('uses',[]) and all(p[k]==product[k] for k in ('profile','width_mm','thickness_mm'))]
     if geometry is None:
-        cuts.add(product, 'Continuous dado rail', number(inputs.get('wall_length'), 'Wall length'))
+        cuts.add(product, 'Continuous dado rail', number(inputs.get('wall_length'), 'Wall length'),
+                 angles={'dado_role':'rail'}, stock_choices=choices)
     else:
         angle = geometry['slope_mitre']
         convention = geometry['angle_convention']
@@ -89,7 +99,7 @@ def rail(cuts, inputs, options, catalogue, *, geometry=None):
                                        ('Slope dado', 'slope_length', lower_joint, upper_joint),
                                        ('Upper landing dado', 'upper_landing', angle, None)]:
             cuts.add(product, role, number(inputs.get(key), key.replace('_', ' ').capitalize(), allow_zero=key!='slope_length'),
-                     angles={'start_joint_setting': start, 'end_joint_setting': end,
+                     stock_choices=choices, angles={'dado_role':'rail', 'start_joint_setting': start, 'end_joint_setting': end,
                              'slope_angle': geometry['slope_angle'], 'convention': convention,
                              'measurement': 'Developed route; no speculative long-point allowance. Split interiors are butt joins.'})
     return product['id']
@@ -104,8 +114,8 @@ def count(value, label):
 
 def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
     from .sections import DADO_STYLES
-    if style not in DADO_STYLES:
-        raise CalculationError('Select a supported dado style.')
+    if style not in SUPPORTED_DADO_STYLES:
+        raise CalculationError('This dado style is coming later. Saved historical results are not converted to another style.')
     w = number(inputs.get('wall_length'), 'Wall length')
     number(kerf, 'Kerf', allow_zero=True, maximum=50)
     cuts = DadoCuts(work_item_id)
@@ -113,18 +123,25 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
     warnings = ['Dado is a new calculation. Frame sizes use outside/long-point dimensions; kerf only consumes stock. Verify joint orientation on a real wall.']
     stair = kind == 'DADO_STAIR'
     if stair:
-        if style != 'Dado':
-            raise CalculationError('Stair dado currently supports the continuous segmented rail; stair dado-square layouts require their own confirmed opening measurements.')
-        geometry = stair_geometry(w, number(inputs.get('height'), 'Panel height'),
-                                 number(inputs.get('lower_landing'), 'Lower landing', allow_zero=True),
-                                 number(inputs.get('upper_landing'), 'Upper landing', allow_zero=True),
-                                 number(inputs.get('slope_length'), 'Measured slope'),
-                                 count(inputs.get('horizontal_squares'), 'Horizontal squares'),
-                                 count(inputs.get('vertical_squares'), 'Vertical squares'),
-                                 number(inputs.get('gap_width'), 'Gap width'))
+        lower = number(inputs.get('lower_landing'), 'Lower landing', allow_zero=True)
+        upper = number(inputs.get('upper_landing'), 'Upper landing', allow_zero=True)
+        slope = number(inputs.get('slope_length'), 'Measured slope')
+        geometry.update(stair_route_geometry(w, lower, upper, slope))
+        if style == 'Dado Squares Bottom':
+            gap = number(inputs.get('gap_width'), 'Gap width', maximum=1000)
+            n = count(inputs.get('bottom_squares'), 'Bottom horizontal squares')
+            zone_height = number(inputs.get('bottom_zone_height'), 'Clear layout height below rail')
+            geometry = stair_geometry(w, zone_height, lower, upper, slope, n, 1, gap)
         warnings.append('Synthetic/recovered stair geometry is not physically verified. Landing/slope boundaries are preserved; the MDF 30 mm allowance is not applied to dado.')
     geometry['rail_stock_id'] = rail(cuts, inputs, options, catalogue, geometry=geometry if stair else None)
-    if style != 'Dado':
+    if stair and style == 'Dado Squares Bottom':
+        profile = product_for(catalogue, options.get('dado_square_id'), 'square_dado')
+        for edge in bead_edges(geometry, w, lower, upper, gap, 1):
+            information = dict(edge['information'], dado_role='square')
+            cuts.add(profile, edge['role'].replace('Bead ', 'Bottom dado ', 1), edge['length_mm'], angles=information)
+        if geometry['counts']['transition']:
+            warnings.append('Transition square dado pieces are conservative trim-to-fit provisions, not verified finished cuts. Labour and mastic use that provisional requirement.')
+    elif style != 'Dado':
         gap = number(inputs.get('gap_width'), 'Gap width', maximum=1000)
         profile = product_for(catalogue, options.get('dado_square_id'), 'square_dado')
         zones = ['bottom', 'top'] if 'Top & Bottom' in style else ['bottom']
@@ -146,10 +163,48 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
                     geometry['frames'].append(frame)
                     for edge, length in [('top', fw), ('bottom', fw), ('left vertical', fh), ('right vertical', fh)]:
                         cuts.add(profile, f'{zone.capitalize()} square {square} · {layer.lower()} · {edge}', length,
-                                 angles={'corner_included_angle': 90, 'start_joint_setting': 45, 'end_joint_setting': 45,
+                                 angles={'dado_role':'square', 'edge':edge, 'corner_included_angle': 90, 'start_joint_setting': 45, 'end_joint_setting': 45,
                                          'measurement': 'Outside/long-point rectangle; split interiors are butt joins.'})
         first = geometry['frames'][0]
         geometry.update(square_width=first['width_mm'], square_height=first['height_mm'])
     groups = cuts.finish(catalogue, kerf)
-    return {'valid': True, 'version': '1.1-dado', 'geometry': geometry, 'groups': groups, 'warnings': warnings,
+    return {'valid': True, 'version': '1.1-dado-follow-up', 'geometry': geometry, 'groups': groups, 'warnings': warnings,
             'horizontal_strips': sum(len(g['strips']) for g in groups.values()), 'vertical_strips': 0}
+
+
+def dado_summary(result, catalogue):
+    """Read structured cuts, including older saved results, without recalculation."""
+    from collections import Counter
+    rail_counts, square_counts = Counter(), Counter()
+    purchases = []
+    horizontal = vertical = 0
+    for group in result.get('groups', {}).values():
+        product = catalogue[group['material_id']]
+        if product['category'] != 'dado':
+            continue
+        uses = set()
+        for cut in group['cuts']:
+            info = cut.get('angle_information') or {}
+            square = info.get('dado_role') == 'square' or 'square' in cut['role'].lower()
+            if square:
+                uses.add('Square dado')
+                orientation = 'Vertical' if 'vertical' in info.get('edge', cut['role']) else 'Horizontal'
+                provision = info.get('stock_allowance', False)
+                kind = 'Transition — trim to fit' if provision else ('Angled' if 'angled' in cut['role'].lower() else 'Flat')
+                square_counts[(orientation,kind,cut['length_mm'],product['label'])] += 1
+                horizontal += orientation == 'Horizontal'
+                vertical += orientation == 'Vertical'
+            else:
+                uses.add('Main dado rail')
+                rail_counts[(cut['role'],cut['length_mm'])] += 1
+        required = sum(c['length_mm'] for c in group['cuts'])
+        units = len(group['strips'])
+        kerf = sum(s['kerf_loss_mm'] for s in group['strips'])
+        purchases.append(dict(label=product['label'],use=' + '.join(sorted(uses)),units=units,
+                              stock_mm=product['length_mm'],required_mm=required,purchased_mm=units*product['length_mm'],
+                              kerf_mm=kerf,cost=round(units*product['price'],2),remainder_mm=round(units*product['length_mm']-required-kerf,6)))
+    return dict(rail=[dict(role=k[0],length_mm=k[1],count=v) for k,v in rail_counts.items()],
+                rail_count=sum(rail_counts.values()),rail_required_mm=round(sum(k[1]*v for k,v in rail_counts.items()),6),horizontal=horizontal,vertical=vertical,
+                square_count=horizontal+vertical,
+                square=[dict(orientation=k[0],kind=k[1],length_mm=k[2],profile=k[3],count=v) for k,v in square_counts.items()],
+                purchases=purchases)

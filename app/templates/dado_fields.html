@@ -1,9 +1,9 @@
 <div class="dado-toggle-fields"><label class="check"><input type="checkbox" name="dado_enabled" {{ 'checked' if item.options.get('dado_enabled') }}>Add a separate dado rail</label><p class="hint">Bead remains inside the MDF panels. Confirm the additional rail's location independently of any ledge.</p></div>
 <div class="rail-fields fields">
-  <label>Dado rail profile · longest compatible stock<select name="dado_rail_id"><option value="">Choose a rail profile</option>
-    {% set choices=dado_rail_choices(catalogue) %}{% set saved=catalogue.get(item.options.get('dado_rail_id')) %}{% if saved and saved.id not in choices|map(attribute='id')|list %}<option value="{{ saved.id }}" data-uses="{{ saved.get('uses',[])|join(' ') }}" selected>{{ saved.label }} · saved profile choice (longest compatible stock used)</option>{% endif %}{% for m in choices %}<option value="{{ m.id }}" data-uses="{{ m.uses|join(' ') }}" {{ 'selected' if m.id==item.options.get('dado_rail_id') }}>{{ m.label }} · {{ m.price|gbp }}</option>{% endfor %}
+  <label>Dado rail profile<select name="dado_rail_id"><option value="">Choose a rail profile</option>
+    {% set choices=dado_rail_choices(catalogue) %}{% set saved=catalogue.get(item.options.get('dado_rail_id')) %}{% if saved and saved.id not in choices|map(attribute='id')|list %}<option value="{{ saved.id }}" data-uses="{{ saved.get('uses',[])|join(' ') }}" selected>{{ saved.label }} · saved profile choice (compatible stock selected)</option>{% endif %}{% for m in choices %}<option value="{{ m.id }}" data-uses="{{ m.uses|join(' ') }}" {{ 'selected' if m.id==item.options.get('dado_rail_id') }}>{{ m.label }} · {{ m.price|gbp }}</option>{% endfor %}
   </select></label>
-  <p class="hint">Uses the longest active stock in the same profile, width and thickness. Longer runs split; complete purchased lengths are charged.</p>
+  <p class="hint">Long runs use long compatible stock; the final piece uses the smallest suitable stock in the same profile, width and thickness. Finished cuts and purchases are shown separately.</p>
 </div>
 <div class="dado-gap-fields fields">{{ input('gap_width','Gap width · mm (not MDF slat width)',item.inputs.get('gap_width',100),type='number',step='any') }}</div>
 <div class="dado-layout-fields">
@@ -14,5 +14,5 @@
   </div>
   <div class="dado-top-fields fields">{{ input('top_squares','Top horizontal squares',item.inputs.get('top_squares',4),type='number',step='1') }}{{ input('top_zone_height','Clear layout height above rail · mm',item.inputs.get('top_zone_height',''),type='number',step='any') }}</div>
   <div class="dado-inner-fields fields">{{ input('inner_inset','Nested frame outer-edge inset · mm',item.inputs.get('inner_inset',''),type='number',step='any') }}</div>
-  <p class="hint">Enter each clear zone excluding the rail, skirting and ceiling trim. Gap is reserved at both vertical edges and between frames. Dimensions describe the outside/long-point rectangle. Double frames require an explicit inset; it is not inferred.</p>
+  <p class="hint">Enter the clear zone below the rail, excluding the rail and skirting. Gap is reserved at both vertical edges and between frames. Dimensions describe the outside/long-point rectangle; stair transitions are labelled trim-to-fit provisions.</p>
 </div>

@@ -1,5 +1,7 @@
 # Milestone 3 — dado, stair finishes and workshop usability
 
+**Follow-up:** the v1.1.0 behavior below is superseded where noted by [Dado follow-up corrections](MILESTONE_3_DADO_FOLLOWUP.md): only Dado / Dado Squares Bottom are enabled; rails now purchase the smallest suitable residual stock; stair dado uses dado-specific inputs and has explicit piece/purchase summaries.
+
 ## Rule provenance
 
 - **RECOVERED RULE:** the five dado style names, distinct middle-rail and square-profile choices, gap inputs, independent top/bottom square counts, outer/inner frame fields, historical product dimensions/prices and £6.50/m dado labour rate exist in the evidence.
