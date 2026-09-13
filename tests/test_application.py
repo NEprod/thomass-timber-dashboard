@@ -59,6 +59,8 @@ def test_editable_mixed_quote_snapshots_and_invalidation(app,signed_in):
     with app.app_context():
         q=db.session.get(Quote,qid);assert q.reference=='TT-000001';assert q.result['valid']
         before=q.result['final_price'];unchanged=deepcopy(db.session.get(WorkItem,stair).result);snapshot=deepcopy(q.snapshot)
+        old_full=deepcopy(db.session.get(WorkItem,full).result)
+        unchanged_half=deepcopy(db.session.get(WorkItem,half).result)
         m=db.session.get(Material,'mdf-9mm');m.price+=100;db.session.commit()
     assert client.get(f'/quotes/{qid}').status_code==200
     assert post_quote(client,app,qid,'edit_item',room_id=living,item_id=full,name='TV half wall',type='PANELLING_HALF',subtype='plain',mdf_id='mdf-9mm',ledge_width=18,position=1,**dict(HALF,wall_length=3500)).status_code==302
@@ -68,6 +70,12 @@ def test_editable_mixed_quote_snapshots_and_invalidation(app,signed_in):
         assert db.session.get(WorkItem,stair).result==unchanged
         assert db.session.get(WorkItem,full).type=='PANELLING_HALF'
         assert db.session.get(WorkItem,half).name=='Window wall'
+        assert db.session.get(WorkItem,half).result==unchanged_half
+        changed=db.session.get(WorkItem,full)
+        assert changed.result!=old_full and changed.inputs['wall_length']=='3500'
+        assert changed.result['geometry']['square_width']==750
+        assert q.result['required_panelling_m']==28.88
+        assert q.result['final_price']!=before
         assert q.result['valid']
     assert post_quote(client,app,qid,'edit_item',room_id=living,item_id=full,name='TV half wall',type='PANELLING_HALF',subtype='plain',mdf_id='mdf-9mm',ledge_width=18,position=1,**dict(HALF,height='')).status_code==302
     with app.app_context():
@@ -88,6 +96,9 @@ def test_editable_mixed_quote_snapshots_and_invalidation(app,signed_in):
     with app.app_context():
         assert db.session.get(WorkItem,half) is None
         assert db.session.get(WorkItem,stair) is not None
+        q=db.session.get(Quote,qid)
+        assert q.result['valid'] and q.result['required_panelling_m']==7.88
+        assert q.result['materials'][0]['required_m']==7.88
 
 
 def test_metadata_customer_catalogue_and_pages(app,signed_in):
