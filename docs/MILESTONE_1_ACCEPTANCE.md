@@ -1,8 +1,8 @@
-# Milestone 1A — Workshop validation & acceptance review
+# Milestone 1 — Final acceptance
 
-Reviewed 13 September 2026 against **5b40f90**. **Outcome: C — requires user/workshop clarification before release.** Recovered numerical behaviour is consistent with the reviewed fixtures; physical cutting instructions and business prices are not yet workshop-approved. No application formulas, seed prices, UI or evidence were changed.
+**Status: B — accepted with documented workshop assumptions.** User-approved final acceptance follows implementation **5b40f90** and workshop review **4275d1f**. The remaining physical stair saw/allowance verification is a tracked workshop validation item, not a release-blocking software defect; it does not prevent proceeding with the maintained application/deployment baseline. This closure changes documentation only, with no formula, seed, UI or evidence changes.
 
-## Baseline and review limits
+## Baseline and review limits (Milestone 1A)
 
 The starting working tree was clean and HEAD was `5b40f90`. This review used the existing calculation and integration tests, `CALCULATIONS.md`, `MILESTONE_1_VERIFICATION.md`, and the maintained calculation/service code. A single final full-suite run checks all existing tests plus stronger assertions in the existing quote-edit test; there was no separate repeated baseline suite.
 
@@ -57,7 +57,7 @@ Cuts and labels stay attached during sorting:
 - Horizontal stocks `[1200,1200]` (2403 used) and `[280,250,250,220]` (1009 used): **2 strips**.
 - Verticals are two 800s and three 960s. Packing `[960,960]`, `[960,800]`, `[800]`: **3 strips**. No middle pieces for one row.
 - Five 100 mm rips purchase one sheet; required MDF **7.880 m**, strip stock 12.200 m, remainder 4.302 m after 0.018 m kerf.
-- Stair ledge adds a **single 1700 mm demand** (`250+1200+250`), one 18 mm rip, still one sheet. It is a material-length provision, **not an approved segmented landing/slope mitre plan**.
+- Stair ledge adds a **single 1700 mm demand** (`250+1200+250`), one 18 mm rip, still one sheet. This developed physical run is user-approved. Sections are expected to meet using suitable mitred joints; the aggregate demand does not supply an end-specific, segmented mitre cutting schedule.
 - Golden-case bead is explicitly unsupported because of transitions: it does not silently generate rectangular substitute demand. Single-row, no-transition stair bead remains supported; multiple rows or bead plus ledge are also explicitly blocked.
 
 Source: `geometry.py::stair_geometry`, stair branch of `sections.py::calculate`. Both width and height cosine scaling, transition classification and vertical-selection branches remain unchanged.
@@ -80,29 +80,52 @@ Source: `geometry.py::stair_geometry`, stair branch of `sections.py::calculate`.
 
 These values were obtained from the maintained calculators and reconciled with their cuts. Deterministic first-fit is preserved; it is not a guarantee of minimum possible stock. Packing stays separate by item/group, with MDF rip widths then pooled by product at quote level.
 
-## Physical questions requiring workshop confirmation
+## User-approved workshop decisions
 
-| Question | Current representation / acceptance boundary |
-| --- | --- |
-| Saw orientation and reference face | `slope_angle` and `*_included_angle` are geometric values; `slope_mitre`, `top_angle_setting`, `bottom_angle_setting` are historical displayed values. Cuts have role labels and angle metadata, but no approved face-up/face-down, left/right, blade tilt, fence or end-specific orientation. Confirm these against an actual fitted sample; do not read every numeric field as a universal saw setting. |
-| Stair measurement convention | Confirm how wall/panel height and angled opening dimensions are measured, especially the height cosine scaling and transition verticals. The supplied golden values are preserved, not independently physically certified. |
-| 30 mm allowance | Top upper = upper+30; top lower = max(0,lower−30); bottom landings and slopes unchanged. Confirm purpose and applicability to short/zero landings. At lower<30 the net demand increases; zero-length pieces are omitted. |
-| Ledge construction | `ledge_width` means rip width in mm on the selected MDF sheet, not thickness, lamination count or number of layers. 2×/3× is stored raw; selecting it in the UI suggests 2 or 3 times current sheet thickness, while the explicit width drives calculation. Later MDF changes do not automatically redefine that confirmed width. Confirm physical projection, layers and dimensions. |
-| Stair ledge joints | The current 1700 total is one cut demand; confirm how actual landing/slope junctions should be segmented and mitred before treating this as a workshop cutting schedule. No geometry was invented here. |
-| Bead dimensions and adhesive | Straight beads use two widths and two heights per opening, without a separately approved inside/long-point measurement or extra mitre allowance. Confirm that dimension convention and whether all bead/ledge length needs mastic. No compatible bead is seeded for 6 mm MDF; incompatible profiles fail validation. |
-| Kerf and joining | Between-piece kerf is the explicit contract, including sheet ripping. It does not separately reserve end trimming, the cut separating a final piece from remainder, defects, or scarf/mitre overlap. Confirm the workshop needs before changing this contract. |
+### Stair angles and physical verification
 
-The current angle/role data is sufficient for this recovery stage; no large model refactor is justified. These questions require user or physical evidence, not speculative formula changes.
+Retain the recovered formulas and intended cutting values: **16.78° slope mitre, 61.78° top and 28.22° bottom** in the golden fixture. The user expects these to correspond closely to the required mitre cuts, pending a real-world stair test.
+
+The model distinguishes geometric `slope_angle` and `*_included_angle` from historical displayed `slope_mitre`, `top_angle_setting` and `bottom_angle_setting`; cuts retain roles and angle metadata. Face-up/face-down, left/right, reference face, fence, blade orientation and long-point conventions are not physically verified. No universal saw orientation is inferred. Verify these on an actual fitted stair sample, including the recovered opening measurement conventions. This is non-blocking workshop validation, not a demonstrated software defect.
+
+### Historical 30 mm allowance
+
+Retain **top upper = upper landing + 30 mm** and **top lower = max(0, lower landing − 30 mm)**. Bottom landings and slope lengths remain unchanged, preserving the characterized fixture. For lower landings below 30 mm, the clamp increases net demand; zero-length pieces are omitted.
+
+The leading workshop explanation is long-point extension across a mitred member's width:
+
+```text
+allowance = member_width × tan(mitre_angle)
+100 mm × tan(16.78°) ≈ 30.1 mm
+```
+
+This closely explains the historical 30 mm constant but is not physical proof. A future allowance derived from actual slat width and angle is a **candidate refinement requiring physical verification**, including its sign, measurement endpoints and short-landing behaviour. The implementation remains constant at 30 mm; no formula change is approved by this closure.
+
+### Ledge
+
+The user confirms that historical **2× / 3× MDF thickness means ledge strip width**: 9 mm MDF gives 18 mm or 27 mm respectively. The maintained `ledge_width` is the explicit rip width on the selected sheet, not lamination count or thickness. The UI's raw 2×/3× choice suggests that width; the confirmed explicit width drives calculations and is not automatically redefined by a later MDF change.
+
+Straight ledge follows wall length. Stair ledge follows **lower landing + slope + upper landing**, with suitable mitred joints between sections. Current material provision and purchased-sheet pricing are consistent with these approved rules. Detailed joint segmentation, saw orientation and long-point allowances still require physical validation before treating aggregate ledge demand as an end-specific workshop cutting schedule.
+
+### Bead
+
+The user approves bead dimensions taken from the **actual finished square/opening**, fitted inside the MDF-created panels. Kerf affects stock consumption and packing only; it must not reduce required finished bead dimensions. Retain the existing opening-based demand and explicit unsupported stair-bead boundaries.
+
+This conceptual geometry may later inform dado-square calculations, with gap width replacing MDF slat width when deriving openings. No dado work is included here. No compatible bead is seeded for 6 mm MDF; incompatible profiles continue to fail validation.
+
+Between-piece kerf remains the recovered packing contract, including sheet ripping. End trimming, defects and joint overlap are not separately reserved. Any additional workshop allowances require evidence before changing the contract.
 
 ## Quantity and pricing semantics
 
-`required_m` is the sum of **cut-demand lengths**, including documented allowances. It excludes purchased remainder and saw loss; it is not surface area or independently measured net installed length. Panelling labour uses slat demand; finish labour includes bead **and ledge** demand. Mastic uses their sum. Thus “required” and “installed” are only equivalent insofar as cut demand represents applied work; allowances and overlapping trim must be business-approved.
+`required_m` is the sum of **cut-demand lengths**, including documented allowances. It excludes purchased remainder and saw loss; it is not surface area or independently measured net installed length. Panelling labour uses slat demand; finish labour includes bead **and ledge** demand. Mastic uses their sum. Thus “required” and “installed” are equivalent only insofar as cut demand represents applied work. The current pricing configuration is approved as the starting policy; the physical stair allowance remains tracked as above.
 
-Purchase cost uses `new_purchase_units × snapshot unit price`: sheets for MDF, lengths for bead. `allocated_existing_mm` is zero; no inventory allocation is implied. Longitudinal remainder and kerf are separate; unused MDF sheet width is represented as area. Different-width MDF rips have additive length totals but not interchangeable material area.
+**Approved customer charging rule:** charge the complete purchasable stock units required to produce the job, even where only part is installed. One required MDF sheet is charged as a whole sheet; a future 3000 mm dado stock unit would likewise be charged in complete required units. Current purchase cost uses `new_purchase_units × snapshot unit price`: sheets for MDF, lengths for bead. `allocated_existing_mm` is zero; no inventory allocation is implied. Longitudinal remainder and kerf are separate; unused MDF sheet width is represented as area. Different-width MDF rips have additive length totals but not interchangeable material area.
+
+Future inventory/offcut support must distinguish **physical material required**, **existing stock allocated**, **new stock actually purchased**, and **customer material charge**. Existing workshop stock can avoid a new cash purchase without making material free on the customer quotation. The current no-inventory model does not yet make that allocation/charge distinction; no inventory implementation is included in this closure.
 
 Mastic tubes = `ceil((panelling_m + finish_m) / 11.5 × 1.5)`; the 1.5 factor effectively reduces coverage to about 7.667 m/tube. Cutting = `(total MDF rips + 1) × £2` for nonempty MDF demand, including ledge rips; no separate bead cutting charge. Delivery is once per nonempty quote. Labour is rounded to pennies, as are monetary components. Take-home = max(per-metre labour, days×180 + hours×22.50); final = ceil((materials + take-home)/10)×10. Exactly divisible totals stay at that £10 boundary. No tax interpretation is assumed.
 
-### Committed seed prices — require commercial confirmation
+### User-approved starting seed prices
 
 | Product | Stock | Unit £ |
 | --- | --- | --- |
@@ -112,7 +135,7 @@ Mastic tubes = `ceil((panelling_m + finish_m) / 11.5 × 1.5)`; the 1.5 factor ef
 | Pine astragal 21×8 / 34×12 (deferred dado catalogue) | 2400 mm | 4.00 / 6.00 |
 | Pine decorative cover 34×12 (deferred dado catalogue) | 2400 mm | 6.20 |
 
-Other retained dado prices remain in `app/data/catalogue.json`, outside the active calculator review. One conspicuous seed value to confirm later: 45 mm dado 1.8 m is £5.60 while 2.1 m is £4.80. No seed was corrected on an assumption.
+Other retained dado prices remain in `app/data/catalogue.json`, outside the active calculator review. For example, 45 mm dado 1.8 m is £5.60 while 2.1 m is £4.80. These are retained approved starting values, not an inferred migration error.
 
 | Rule | Seed |
 | --- | --- |
@@ -124,7 +147,9 @@ Other retained dado prices remain in `app/data/catalogue.json`, outside the acti
 | Finish labour | £4/m bead and ledge |
 | Dado labour | £6.50/m, retained configuration, unused by supported types |
 
-Confirm supplier currency/tax basis and current prices, coverage factor, extra cutting unit, delivery policy, ledge-at-bead labour rate and whether whole/fractional days are intended (the form/service currently permits fractions). These are commercial questions; this review does not assert prices are current market rates.
+The user approves the currently seeded prices/configuration as starting values, including material and labour rates, mastic values, cutting/delivery policy and quote rounding. This is business acceptance, not a claim that prices match current supplier rates or establish a tax basis.
+
+**Configuration requirement:** all these values must remain editable and persisted so they can change in future. Existing material prices and numeric rates are persisted/editable. The reviewed implementation still expresses the mastic ×1.5 factor, extra cutting unit and £10 rounding rule in calculation code; those policy choices are not all exposed as editable settings. Approval of their current values does not imply that this editability requirement is already fully implemented. Record policy configuration as a future scoped requirement; this documentation-only closure changes none of it.
 
 ## Editable quotes and failure states
 
@@ -140,15 +165,24 @@ The unchanged baseline sufficiently follows the supplied design direction for th
 
 Future polish only: clearer pricing units/labels, singular/plural copy, shorter stock selector labels, clearer distinction between aggregate material demand and workshop-ready joint instructions. No placeholder feature buttons were added.
 
-## Changes, tests and next milestone
+## Milestone 1A changes and tests (4275d1f)
 
 Application code/configuration: **none**. Existing integration test assertions strengthened; this acceptance document added. No new workshop rule was invented or approved by the agent. Full-suite result and evidence comparison are recorded below after the single completion run.
 
-Next milestone should obtain a physical sign-off on the golden stair sample, ledge section/joints, bead measurement convention and pricing checklist. Record the user's decisions as focused fixtures; implement only any resulting agreed corrections. Do not start deployment or Milestone 2 automatically. No release tag is appropriate yet.
+The subsequent user decisions recorded above supersede the review's former status C and requests for business confirmation. Preserve the golden fixture while tracking physical stair saw/allowance verification. Any resulting refinement requires a separately agreed, focused change. This closure does not start deployment or Milestone 2, and creates no release tag.
 
-### Completion evidence
+### Historical review completion evidence
 
 - Single full run: `/private/tmp/timber-verify-venv/bin/pytest -q` — **23 passed, 4 warnings in 32.24 seconds**. The four warnings are the previously recorded generated migration `get_engine()` deprecation; no new failure. No test was removed or rerun separately.
 - `git diff --check` passed for the tracked changes.
 - Read-only per-file SHA256 comparison against the saved Milestone 1 final manifest: **239 evidence files, zero changed/missing, zero added**. This confirms no evidence drift since that baseline, including historical source. The older audit-to-Milestone-1 `.DS_Store` discrepancy remains separately documented; it was not repaired or hidden.
 - Only this document and 11 added assertions/setup lines in the existing integration test changed. Application source, seed values, database schema, UI and evidence remain at the accepted implementation baseline.
+
+## Final acceptance closure
+
+- **B — accepted with documented workshop assumptions**, on top of `4275d1f` (review) and `5b40f90` (implementation).
+- Starting working tree clean; only this acceptance document changed for closure.
+- No application behaviour, formulas, configuration, tests or `old_evidence` changed.
+- No tests or browser automation rerun for this documentation-only update. The prior **23 passed** result above remains the recorded validation evidence.
+- Physical saw orientation and the candidate width/angle allowance remain non-blocking workshop verification items. Policy editability remains explicitly tracked above.
+- No deployment work, Milestone 2 or release tag is included.
