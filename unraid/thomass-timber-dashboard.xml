@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>Thomas Timber Dashboard</Name>
+  <Repository>neprod/thomass-timber-dashboard:latest</Repository>
+  <Registry>https://hub.docker.com/r/neprod/thomass-timber-dashboard</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/NEprod/thomass-timber-dashboard/issues</Support>
+  <Project>https://github.com/NEprod/thomass-timber-dashboard</Project>
+  <Overview>Thomas Timber quotations, panelling calculations, material purchasing and pricing. Create the administrator on first visit. Persistent data and a generated session key live in /data. Prepare both host directories writable by UID 99/GID 100 before starting. Back up /data before updates. Stair physical saw conventions remain pending workshop verification.</Overview>
+  <Category>Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:2112]/</WebUI>
+  <ExtraParams>--user=99:100 --stop-timeout=40</ExtraParams>
+  <Config Name="Web port" Target="2112" Default="2112" Mode="tcp" Description="Application HTTP port" Type="Port" Display="always" Required="true" Mask="false">2112</Config>
+  <Config Name="Application data" Target="/data" Default="/mnt/user/appdata/thomass-timber-dashboard/data/" Mode="rw" Description="Database and persistent session key; owner 99:100" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/thomass-timber-dashboard/data/</Config>
+  <Config Name="Future uploads" Target="/uploads" Default="/mnt/user/appdata/thomass-timber-dashboard/uploads/" Mode="rw" Description="Reserved persistent uploads directory; owner 99:100" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/thomass-timber-dashboard/uploads/</Config>
+  <Config Name="Session secret (optional)" Target="SECRET_KEY" Default="" Mode="" Description="Leave empty to generate /data/session.key. If overriding, use a stable random value of at least 32 characters; keep it private and backed up." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="HTTPS-only cookies" Target="TIMBER_SECURE_COOKIES" Default="0" Mode="" Description="Set to 1 only when accessing through HTTPS; leave 0 for LAN HTTP." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
+</Container>

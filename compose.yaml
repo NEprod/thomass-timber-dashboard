@@ -1,0 +1,20 @@
+services:
+  timber:
+    image: neprod/thomass-timber-dashboard:latest
+    platform: linux/amd64
+    build: .
+    ports:
+      - "2112:2112"
+    environment:
+      APP_PORT: "2112"
+      DATA_DIR: /data
+      UPLOAD_DIR: /uploads
+      TIMBER_SECURE_COOKIES: "${TIMBER_SECURE_COOKIES:-0}"
+    volumes:
+      - timber-data:/data
+      - timber-uploads:/uploads
+    restart: unless-stopped
+    stop_grace_period: 40s
+volumes:
+  timber-data:
+  timber-uploads:
