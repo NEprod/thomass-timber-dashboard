@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+instance/
+.local-data/
+.DS_Store
+# Immutable recovery evidence, including nested historical repositories.
+old_evidence/
