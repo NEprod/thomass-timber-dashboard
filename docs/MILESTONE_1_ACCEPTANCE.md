@@ -37,9 +37,11 @@ Input 3000×1000, grid 4×1. Opening 625×800.
 
 Long-run splitting preserves required length; blade loss is charged during stock packing, not subtracted from the wall. Join positions are stock-driven, not a validated aesthetic or structural joint plan.
 
-### Stair half wall: permanent golden case
+### Stair half wall: permanent synthetic golden case
 
-Inputs: wall 1500, panel 1000, lower/upper landings 250/250, measured slope 1200, grid 4×1, slat 100, stock 2440, kerf 3.
+Inputs: wall 1500, panel 1000, lower/upper landings 250/250, measured slope input 1200, grid 4×1, slat 100, stock 2440, kerf 3.
+
+This is a **synthetic/example regression fixture**, originally used to exercise and understand the recovered stair calculation. It is not a measurement from a real staircase or completed installation; “measured slope” names the input field, not the provenance of this example. It preserves deterministic historical behaviour across future refactors: the same inputs must reproduce geometry, angles, square dimensions, flat/angled/transition classification, labelled cuts, stock packing and material quantities. It does **not** verify a physically validated staircase.
 
 | Derived value | Result |
 | --- | --- |
@@ -84,7 +86,7 @@ These values were obtained from the maintained calculators and reconciled with t
 
 ### Stair angles and physical verification
 
-Retain the recovered formulas and intended cutting values: **16.78° slope mitre, 61.78° top and 28.22° bottom** in the golden fixture. The user expects these to correspond closely to the required mitre cuts, pending a real-world stair test.
+Retain the recovered calculation and synthetic regression expectations: **approximately 33.56° slope angle, 16.78° slope mitre, 61.78° top displayed setting and 28.22° bottom displayed setting**. These appear plausible to the user and reasonably close to expected real stair mitres, but remain physically provisional. They have not been verified using real staircase measurements, an actual physical cut, confirmed saw orientation or a confirmed long-point/short-point measurement convention. They are not workshop-verified saw settings.
 
 The model distinguishes geometric `slope_angle` and `*_included_angle` from historical displayed `slope_mitre`, `top_angle_setting` and `bottom_angle_setting`; cuts retain roles and angle metadata. Face-up/face-down, left/right, reference face, fence, blade orientation and long-point conventions are not physically verified. No universal saw orientation is inferred. Verify these on an actual fitted stair sample, including the recovered opening measurement conventions. This is non-blocking workshop validation, not a demonstrated software defect.
 
@@ -92,14 +94,14 @@ The model distinguishes geometric `slope_angle` and `*_included_angle` from hist
 
 Retain **top upper = upper landing + 30 mm** and **top lower = max(0, lower landing − 30 mm)**. Bottom landings and slope lengths remain unchanged, preserving the characterized fixture. For lower landings below 30 mm, the clamp increases net demand; zero-length pieces are omitted.
 
-The leading workshop explanation is long-point extension across a mitred member's width:
+The physical reason for the historical constant is **not confirmed**. A plausible mathematical hypothesis is that it compensated for long-point extension across a mitred slat's width. For the synthetic fixture:
 
 ```text
-allowance = member_width × tan(mitre_angle)
+candidate_extension = member_width × tan(mitre_angle)
 100 mm × tan(16.78°) ≈ 30.1 mm
 ```
 
-This closely explains the historical 30 mm constant but is not physical proof. A future allowance derived from actual slat width and angle is a **candidate refinement requiring physical verification**, including its sign, measurement endpoints and short-landing behaviour. The implementation remains constant at 30 mm; no formula change is approved by this closure.
+This may explain the approximately 30 mm historical value, but is neither physical proof nor an approved replacement formula. Preserve the fixed 30 mm implementation for regression compatibility. Future physical testing should determine whether it should become a value derived from actual member/slat width and angle, including its sign, measurement endpoints and short-landing behaviour. This matters particularly for different slat widths, dado profiles and other angled joinery; no implementation change is made or approved here.
 
 ### Ledge
 
@@ -179,6 +181,8 @@ The subsequent user decisions recorded above supersede the review's former statu
 - Only this document and 11 added assertions/setup lines in the existing integration test changed. Application source, seed values, database schema, UI and evidence remain at the accepted implementation baseline.
 
 ## Final acceptance closure
+
+The clarification following documentation commit `4a1664a` does not reopen Milestone 1. **Calculation regression verified** is true; **physical workshop geometry verified** remains outstanding for the stair mitre/allowance convention. Real-world verification remains a future non-blocking validation task, and acceptance remains **B**.
 
 - **B — accepted with documented workshop assumptions**, on top of `4275d1f` (review) and `5b40f90` (implementation).
 - Starting working tree clean; only this acceptance document changed for closure.
