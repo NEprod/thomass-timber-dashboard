@@ -62,10 +62,10 @@ def test_bead_ledge_and_stair_supported_boundary(catalogue):
     assert sum(c['length_mm'] for c in result['groups']['ledge']['cuts'])==3000
     assert sum(c['length_mm'] for c in result['groups']['ledge_beads']['cuts'])==3000
     assert sum(len(g['strips']) for n,g in result['groups'].items() if 'bead' in n)==8
-    with pytest.raises(CalculationError,match='unsupported'):
-        calc(catalogue,'STAIR_HALF',STAIR,'bead',options)
+    transition=calc(catalogue,'STAIR_HALF',STAIR,'bead',options)
+    assert len(transition['groups']['stair_opening_beads']['cuts'])==20
     normal=calc(catalogue,'STAIR_HALF',dict(STAIR,lower_landing=0,upper_landing=0,slope_length=1800),'bead',options)
-    assert len(normal['groups']['angled_square_beads']['cuts'])==16
+    assert len(normal['groups']['stair_opening_beads']['cuts'])==16
     ledge=calc(catalogue,'STAIR_HALF',STAIR,'ledge')
     assert sum(c['length_mm'] for c in ledge['groups']['ledge']['cuts'])==1700
 

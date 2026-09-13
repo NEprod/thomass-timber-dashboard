@@ -81,6 +81,7 @@ class Material(db.Model):
     price = db.Column(db.Float, nullable=False)
     active = db.Column(db.Boolean, default=True, nullable=False)
     preferred_stock_mm = db.Column(db.Float)
+    uses = db.Column(db.JSON, nullable=False, default=list)
     def as_dict(self):
         return {c.name:getattr(self,c.name) for c in self.__table__.columns}
 

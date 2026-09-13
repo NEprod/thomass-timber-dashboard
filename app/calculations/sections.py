@@ -6,7 +6,8 @@ from .packing import CalculationError, number, pack, split_run
 from .geometry import stair_geometry, WORKSHOP_ALLOWANCE_MM
 
 TYPES = {'PANELLING_FULL':'Full square panelling','PANELLING_HALF':'Half square panelling',
-         'PANELLING_STAIR_HALF':'Stair half-wall panelling'}
+         'PANELLING_STAIR_HALF':'Stair half-wall panelling',
+         'DADO_STRAIGHT':'Straight dado', 'DADO_STAIR':'Stair dado rail'}
 SUBTYPES = {'plain':'Plain','bead':'With bead','ledge':'With ledge','ledge_bead':'With ledge & bead'}
 DADO_STYLES = ['Dado','Dado Squares Top & Bottom','Dado Double Squares Top & Bottom','Dado Squares Bottom','Dado Double Squares Bottom']
 VERSION = '1.0-measured-legacy'
@@ -26,6 +27,9 @@ class Cut:
     join_id: str | None = None
 
 def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='preview'):
+    if kind in ('DADO_STRAIGHT', 'DADO_STAIR'):
+        from .dado import calculate_dado
+        return calculate_dado(kind, subtype, inputs, options, catalogue, kerf, work_item_id)
     if kind not in TYPES:
         raise CalculationError('This work-item calculator is not supported in Milestone 1.')
     if subtype not in SUBTYPES or (kind=='PANELLING_FULL' and 'ledge' in subtype):
@@ -100,13 +104,23 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
             add(group,'Bead horizontal',width,count*2,material=bead,width=bead['width_mm'])
             add(group,'Bead vertical',height,count*2,material=bead,width=bead['width_mm'])
         if kind=='PANELLING_STAIR_HALF':
-            if geometry['counts']['transition'] or r>1 or 'ledge' in subtype:
-                raise CalculationError('Stair bead with transitions, multiple rows or ledge is unsupported pending workshop verification. Choose plain or ledge-only stair panelling.')
-            perimeter('flat_square_beads',sw,sh,geometry['counts']['flat'])
-            perimeter('angled_square_beads',geometry['angled_square_width'],geometry['angled_square_height'],geometry['counts']['angled'])
+            from .stair_bead import bead_edges
+            for edge in bead_edges(geometry,w,lower,upper,s,r):
+                add('stair_opening_beads',edge['role'],edge['length_mm'],material=bead,width=bead['width_mm'],angles=edge['information'])
+            if geometry['counts']['transition']:
+                warnings.append('User-approved transition bead stock allowance: larger recovered square sizes, with top/bottom bends at the same horizontal position. Trim to the measured opening; these are not finished cutting dimensions. Labour/mastic use this provisional required allowance, excluding purchased remainder.')
+            if 'ledge' in subtype:
+                for role,value in [('Lower landing under-ledge bead',lower),('Slope under-ledge bead',slope),('Upper landing under-ledge bead',upper)]:
+                    add('ledge_beads',role,value,material=bead,width=bead['width_mm'],split=True,angles=angles)
         else:
             perimeter('square_beads',sw,sh,n*r)
             if 'ledge' in subtype: add('ledge_beads','Under-ledge bead',w,material=bead,width=bead['width_mm'],split=True)
+    if options.get('dado_enabled'):
+        from .dado import DadoCuts, rail
+        dado = DadoCuts(work_item_id)
+        rail(dado, inputs, options, catalogue, geometry=geometry if kind=='PANELLING_STAIR_HALF' else None)
+        groups.update(dado.finish(catalogue, kerf))
+        warnings.append('Additional dado is a separate rail demand; bead still follows the MDF openings. Confirm placement and any rail joints independently.')
     for group in groups.values():
         group['strips']=pack(group['cuts'],catalogue[group['material_id']]['length_mm'],kerf)
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,

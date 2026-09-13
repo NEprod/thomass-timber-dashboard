@@ -46,7 +46,9 @@ The suite includes read-only legacy characterization, maintained calculator regr
 
 See [calculation provenance and limitations](docs/CALCULATIONS.md) and the [original recovery audit](docs/LEGACY_RECOVERY_AUDIT.md).
 
-Deferred: dado/stair-dado calculations, inventory/offcuts, attachments, quote PDF/revisions UI, calendar/iCal, job workflow, alcove calculators, dashboard analytics.
+Milestone 3 adds straight dado styles, segmented stair dado, stair bead provisions and preserved recalculation context. See [workshop rules and validation limits](docs/MILESTONE_3_DADO_STAIR.md).
+
+Deferred: inventory/offcuts, attachments, quote PDF/revisions UI, calendar/iCal, job workflow, alcove calculators, dashboard analytics.
 
 ## Docker deployment
 

@@ -10,7 +10,8 @@
       "width_mm": 1220,
       "thickness_mm": 6,
       "price": 15,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "mdf-9mm",
@@ -21,7 +22,8 @@
       "width_mm": 1220,
       "thickness_mm": 9,
       "price": 18,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "mdf-12mm",
@@ -32,7 +34,8 @@
       "width_mm": 1220,
       "thickness_mm": 12,
       "price": 22,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "bead-glass_bead-9x9",
@@ -43,7 +46,8 @@
       "width_mm": 9,
       "thickness_mm": 9,
       "price": 2.8,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "bead-glass_bead-12x9",
@@ -54,7 +58,8 @@
       "width_mm": 12,
       "thickness_mm": 9,
       "price": 3,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "bead-glass_bead-15x9",
@@ -65,7 +70,8 @@
       "width_mm": 15,
       "thickness_mm": 9,
       "price": 3.2,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "bead-barrel-21x9",
@@ -76,7 +82,8 @@
       "width_mm": 21,
       "thickness_mm": 9,
       "price": 4,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "bead-barrel-34x12",
@@ -87,7 +94,8 @@
       "width_mm": 34,
       "thickness_mm": 12,
       "price": 5.2,
-      "active": true
+      "active": true,
+      "uses": []
     },
     {
       "id": "dado-45mm-4.8m",
@@ -99,7 +107,11 @@
       "thickness_mm": 20,
       "price": 11,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-4.5m",
@@ -111,7 +123,11 @@
       "thickness_mm": 20,
       "price": 10.4,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-4.2m",
@@ -123,7 +139,11 @@
       "thickness_mm": 20,
       "price": 9.7,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-3.6m",
@@ -135,7 +155,11 @@
       "thickness_mm": 20,
       "price": 8.6,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-3m",
@@ -147,7 +171,12 @@
       "thickness_mm": 20,
       "price": 7.2,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado",
+        "square_dado"
+      ]
     },
     {
       "id": "dado-45mm-2.7m",
@@ -159,7 +188,11 @@
       "thickness_mm": 20,
       "price": 6.5,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-2.4m",
@@ -171,7 +204,11 @@
       "thickness_mm": 20,
       "price": 5.6,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-2.1m",
@@ -183,7 +220,11 @@
       "thickness_mm": 20,
       "price": 4.8,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-1.8m",
@@ -195,7 +236,11 @@
       "thickness_mm": 20,
       "price": 5.6,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-45mm-1.5m",
@@ -207,7 +252,11 @@
       "thickness_mm": 20,
       "price": 3.4,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-4.8m",
@@ -219,7 +268,11 @@
       "thickness_mm": 20,
       "price": 16.4,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-4.5m",
@@ -231,7 +284,11 @@
       "thickness_mm": 20,
       "price": 15.3,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-4.2m",
@@ -243,7 +300,11 @@
       "thickness_mm": 20,
       "price": 14.3,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-3.6m",
@@ -255,7 +316,11 @@
       "thickness_mm": 20,
       "price": 12.6,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-3m",
@@ -267,7 +332,12 @@
       "thickness_mm": 20,
       "price": 10.5,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado",
+        "square_dado"
+      ]
     },
     {
       "id": "dado-70mm-2.7m",
@@ -279,7 +349,11 @@
       "thickness_mm": 20,
       "price": 9.5,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-2.4m",
@@ -291,7 +365,11 @@
       "thickness_mm": 20,
       "price": 8.2,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-2.1m",
@@ -303,7 +381,11 @@
       "thickness_mm": 20,
       "price": 7.2,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-1.8m",
@@ -315,7 +397,11 @@
       "thickness_mm": 20,
       "price": 6.2,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-70mm-1.5m",
@@ -327,7 +413,11 @@
       "thickness_mm": 20,
       "price": 5.1,
       "active": true,
-      "preferred_stock_mm": 3000
+      "preferred_stock_mm": 3000,
+      "uses": [
+        "continuous_dado",
+        "stair_dado"
+      ]
     },
     {
       "id": "dado-astragal-21x8mm",
@@ -339,7 +429,10 @@
       "thickness_mm": 8,
       "price": 4,
       "active": true,
-      "preferred_stock_mm": null
+      "preferred_stock_mm": null,
+      "uses": [
+        "square_dado"
+      ]
     },
     {
       "id": "dado-astragal-34x12mm",
@@ -351,7 +444,10 @@
       "thickness_mm": 12,
       "price": 6,
       "active": true,
-      "preferred_stock_mm": null
+      "preferred_stock_mm": null,
+      "uses": [
+        "square_dado"
+      ]
     },
     {
       "id": "dado-decorative_cover-34x12mm",
@@ -363,7 +459,10 @@
       "thickness_mm": 12,
       "price": 6.2,
       "active": true,
-      "preferred_stock_mm": null
+      "preferred_stock_mm": null,
+      "uses": [
+        "square_dado"
+      ]
     }
   ],
   "pricing": {

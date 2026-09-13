@@ -10,8 +10,8 @@ def money(value):
 def aggregate(results, catalogue, config, days=0, hours=0):
     days=number(days,'Full days',allow_zero=True,maximum=365)
     hours=number(hours,'Extra hours',allow_zero=True,maximum=10000)
-    materials={}; rip_demands=defaultdict(list)
-    installed_slat=installed_finish=0
+    materials={}; rip_demands=defaultdict(list); dado_demands=defaultdict(list)
+    installed_slat=installed_finish=installed_dado=0
     for result in results:
         if not result.get('valid'): continue
         for name,group in result['groups'].items():
@@ -26,11 +26,18 @@ def aggregate(results, catalogue, config, days=0, hours=0):
                     rip_demands[group['material_id']].append({'length_mm':group['width_mm'],'label':'Ledge rip' if name=='ledge' else 'Slat rip','role':name,'work_item_id':strip['cuts'][0]['work_item_id']})
                 if name=='ledge': installed_finish+=required
                 else: installed_slat+=required
+            elif product['category']=='dado':
+                dado_demands[group['material_id']].extend(group['cuts']);installed_dado+=required
             else:
                 row['new_purchase_units']+=len(group['strips']);installed_finish+=required
     cost=0; total_rips=0
     for key,row in materials.items():
         product=catalogue[key]
+        if product['category']=='dado':
+            row['stocks']=pack(dado_demands[key],product['length_mm'],config['kerf'])
+            row['new_purchase_units']=len(row['stocks'])
+            row['strip_stock_mm']=len(row['stocks'])*product['length_mm']
+            row['kerf_loss_mm']=sum(stock['kerf_loss_mm'] for stock in row['stocks'])
         if product['category']=='mdf':
             # Historical slat-first ripping, with one bounded packing representation.
             demand=sorted(rip_demands[key],key=lambda d:d['role']=='ledge')
@@ -43,17 +50,17 @@ def aggregate(results, catalogue, config, days=0, hours=0):
         row['remainder_m']=round((row['strip_stock_mm']-row['required_m']*1000-row['kerf_loss_mm'])/1000,6)
         row['cost']=money(row['new_purchase_units']*product['price']);cost+=row['cost']
     has_work=bool(materials)
-    slat_m,finish_m=installed_slat/1000,installed_finish/1000
-    mastic=math.ceil((slat_m+finish_m)/config['mastic_linear_coverage']*1.5) if has_work else 0
+    slat_m,finish_m,dado_m=installed_slat/1000,installed_finish/1000,installed_dado/1000
+    mastic=math.ceil((slat_m+finish_m+dado_m)/config['mastic_linear_coverage']*1.5) if has_work else 0
     mastic_cost=money(mastic*config['mastic_unit_price'])
     cut_cost=money((total_rips+1)*config['cut_cost_per_strip']) if total_rips else 0
     delivery=config['delivery_cost'] if has_work else 0
     material_cost=money(cost+mastic_cost+cut_cost+delivery)
-    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp'])
+    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp'])
     time_allowance=money(days*config['day_rate']+hours*config['hourly_rate']) if has_work else 0
     take_home=max(labour,time_allowance)
     valid=all(r.get('valid') for r in results)
-    return dict(valid=valid,materials=list(materials.values()),required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m,6),
+    return dict(valid=valid,materials=list(materials.values()),required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),
                 stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,delivery_cost=delivery,
                 material_cost=material_cost,labour_cost=labour,time_allowance=time_allowance,take_home=take_home,
                 final_price=math.ceil(money(material_cost+take_home)/10)*10 if valid else None)

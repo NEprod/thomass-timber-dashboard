@@ -1,0 +1,8 @@
+{% set angles=cut.angle_information %}
+{% if angles %}
+  {% if angles.get('stock_allowance') %}<span class="pill">Trim-to-fit stock allowance</span>{% endif %}
+  {% if angles.get('slope_mitre') is not none %}<small>Slope mitre {{ angles.slope_mitre }}°</small>{% endif %}
+  {% if angles.get('top_angle_setting') is not none %}<small>Top / bottom displayed settings {{ angles.top_angle_setting }}° / {{ angles.bottom_angle_setting }}°</small>{% endif %}
+  {% if 'start_joint_setting' in angles %}<small>Start / end joint settings: {{ (angles.start_joint_setting|string + '°') if angles.start_joint_setting is not none else 'external end — confirm' }} / {{ (angles.end_joint_setting|string + '°') if angles.end_joint_setting is not none else 'external end — confirm' }}</small>{% endif %}
+  {% if angles.get('measurement') %}<small>{{ angles.measurement }}</small>{% endif %}
+{% endif %}

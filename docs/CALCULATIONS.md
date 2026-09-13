@@ -1,4 +1,4 @@
-# Milestone 1 calculation recovery
+# Calculation recovery and maintained extensions
 
 The audit in `LEGACY_RECOVERY_AUDIT.md` remains the forensic reference. Historical files are untouched. Runtime source and seed data live entirely outside `old_evidence/`.
 
@@ -48,7 +48,7 @@ Acute and obtuse values are included angles; top/bottom and slope mitre retain h
 
 ## Materials and pricing
 
-Each work-item group is length-packed independently, preserving historical grouping. The quote collects the **actual packed strip demands** and packs MDF rip widths into sheets, slats before ledges. Different widths/materials remain identifiable. This is deterministic first-fit, not a globally optimal cutting solver. It does not combine spare lengths across separate work-item groups.
+Each work-item group is length-packed independently, preserving historical grouping. The quote collects the **actual packed strip demands** and packs MDF rip widths into sheets, slats before ledges. Different widths/materials remain identifiable. This is deterministic first-fit, not a globally optimal cutting solver. MDF and bead retain this grouping. Milestone 3 pools identical dado stock across work items at quote level; its shared plan is shown in the quote summary.
 
 Required material is the sum of actual cuts, including the documented workshop allowances. New purchase units are MDF sheets or bead stock lengths. Results separately retain allocated strip length, length kerf, length remainder, purchased MDF area and sheet rip remainder. No owned stock is allocated yet; `allocated_existing_mm` is explicitly zero. Material cost is purchase units × the saved unit price. Work-item pricing contains installed demand and labour; shared sheet purchasing is priced at quote level to avoid charging the same pooled sheet twice.
 
@@ -59,8 +59,8 @@ Catalogue and pricing are JSON snapshots on each quote, independent of editable 
 ## Supported boundaries
 
 - Full and half straight bead preserve perimeter behaviour; half ledge with bead also includes the under-ledge run.
-- Stair bead is supported only for single-row layouts without transitions and without ledge. Historical transition rectangles, multi-row bead counts and stair under-ledge geometry are not sufficiently established; these selections give an explicit unsupported error and no invented totals.
+- Milestone 3 extends stair bead across rows and ledge combinations. Flat/angled pieces use recovered opening dimensions. Transition bead uses user-authorized conservative, bend-segmented stock allowances, explicitly not exact finished cuts. See `MILESTONE_3_DADO_STAIR.md`.
 - Ledge uses an explicit confirmed rip width. Historical 2×/3× choices remain raw options; selecting one suggests a width but does not establish a physical interpretation. Stair ledge run is lower landing + measured slope + upper landing.
-- Historic MDF, bead and dado catalogue data are seeded once. Dado style vocabulary and 45/70 mm preferred 3000 mm stock metadata are retained; no dado cuts are generated in this milestone.
+- Historic MDF, bead and dado catalogue data are seeded once. Dado style vocabulary and 45/70 mm preferred 3000 mm stock metadata are retained; Milestone 3 now generates dado cuts using explicit product-use permissions and new documented layout rules.
 - Customer edits update the reusable customer record. Quote price snapshots are implemented; immutable customer/address revisions are not.
 - First-run administrator authentication is intentionally simple. No multi-user roles UI, account recovery or production deployment is included.

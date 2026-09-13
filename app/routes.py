@@ -6,7 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import inspect, text
 from sqlalchemy.orm.exc import StaleDataError
 from .models import db, User, Customer, Quote, Room, WorkItem, Material, PricingConfig, now
-from .calculations.sections import TYPES, SUBTYPES
+from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
+from .calculations.dado import USES, rail_choices
 from .calculations.packing import number, CalculationError
 from .services.quotes import current_snapshot, recalculate_item, reaggregate, refresh_prices
 
@@ -48,7 +49,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(types=TYPES,subtypes=SUBTYPES,statuses=STATUSES)
+def shared():return dict(types=TYPES,subtypes=SUBTYPES,dado_styles=DADO_STYLES,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
@@ -183,7 +184,7 @@ def quote_edit(quote_id):
                     if sum(len(r.items) for r in q.rooms)>=100:raise CalculationError('Maximum 100 work items per quote.')
                     kind=field('type')
                     if kind not in TYPES:raise CalculationError('Choose a supported work type.')
-                    item=WorkItem(name=field('name',True),type=kind,subtype='plain',inputs={'slat_width':100,'horizontal_squares':4,'vertical_squares':1},options={'mdf_id':'mdf-9mm','ledge_width':18},position=len(room.items))
+                    item=WorkItem(name=field('name',True),type=kind,subtype='Dado' if kind.startswith('DADO_') else 'plain',inputs={'slat_width':100,'horizontal_squares':4,'vertical_squares':1,'gap_width':100,'bottom_squares':4,'top_squares':4},options={'mdf_id':'mdf-9mm','ledge_width':18},position=len(room.items))
                     room.items.append(item);db.session.flush();recalculate_item(item,q.snapshot)
                 else:
                     item=next((i for i in room.items if i.id==request.form.get('item_id',type=int)),None)
@@ -193,12 +194,14 @@ def quote_edit(quote_id):
                         item.name=field('name',True);item.type=field('type');item.subtype=field('subtype')
                         item.notes=field('notes',limit=5000)
                         item.position=int(number(request.form.get('position',0),'Item order',allow_zero=True,maximum=1000))
-                        item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length']}
-                        item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice']}
+                        item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset']}
+                        item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice','dado_rail_id','dado_square_id']}
+                        item.options['dado_enabled']='dado_enabled' in request.form
                         recalculate_item(item,q.snapshot)
             else:abort(400,description='Unknown quote action.')
             reaggregate(q);db.session.commit();flash('Quote saved. Calculations and totals updated.','success')
-            return redirect(request.path)
+            anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ''
+            return redirect(request.path+anchor)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
         except StaleDataError:db.session.rollback();abort(409,description='This quote changed in another session. Reload before editing.')
     return render_template('quote_edit.html',quote=q,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'])
@@ -216,6 +219,12 @@ def materials():
                 material=db.get_or_404(Material,field('material_id'))
                 vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k=='price') for k in ['length_mm','width_mm','thickness_mm','price']}
                 for k,v in vals.items():setattr(material,k,v)
+                if request.form.get('edit_compatibility')=='1':
+                    material.label=field('label',True)
+                    material.profile=field('profile',True)
+                    uses=request.form.getlist('uses')
+                    if any(use not in USES for use in uses):raise CalculationError('Unknown material use.')
+                    material.uses=list(dict.fromkeys(uses)) if material.category=='dado' else []
                 material.active='active' in request.form
             db.session.commit();flash('Current catalogue updated. Existing quote snapshots are unchanged.','success');return redirect(request.path)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
