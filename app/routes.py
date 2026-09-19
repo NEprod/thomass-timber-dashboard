@@ -47,6 +47,29 @@ def stock_available(stock):
     used=sum(row.quantity for row in stock.allocations)
     return max(0, stock.quantity-used)
 
+def new_material_id(category, label):
+    base=re.sub(r'[^a-z0-9]+','-',label.lower()).strip('-') or 'material'
+    base=(category+'-'+base)[:90].rstrip('-')
+    candidate=base; suffix=2
+    while db.session.get(Material,candidate):
+        candidate=(base[:96-len(str(suffix))]+'-'+str(suffix)).rstrip('-')
+        suffix+=1
+    return candidate
+
+def create_material(category):
+    if category not in ('mdf','bead','dado'):raise CalculationError('Choose a valid material family.')
+    label=field('label',True)
+    uses=request.form.getlist('uses')
+    if any(use not in USES for use in uses):raise CalculationError('Unknown material use.')
+    return Material(id=new_material_id(category,label),category=category,label=label,
+                    profile=field('profile',True),
+                    length_mm=number(request.form.get('length_mm'),'Stock length',maximum=100000),
+                    width_mm=number(request.form.get('width_mm'),'Width',maximum=100000),
+                    thickness_mm=number(request.form.get('thickness_mm'),'Thickness',maximum=100000),
+                    price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000),
+                    active='active' in request.form,
+                    uses=list(dict.fromkeys(uses)) if category=='dado' else [])
+
 @web.before_app_request
 def first_run_guard():
     if request.endpoint in ('static','web.health'):return
@@ -317,6 +340,8 @@ def materials():
             elif request.form.get('action')=='edit_consumable':
                 consumable=db.get_or_404(Consumable,request.form.get('consumable_id',type=int))
                 consumable.label=field('label',True);consumable.unit_label=field('unit_label',True,limit=80);consumable.price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000);consumable.active='active' in request.form
+            elif request.form.get('action')=='add_material':
+                db.session.add(create_material(field('category')))
             else:
                 material=db.get_or_404(Material,field('material_id'))
                 vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k=='price') for k in ['length_mm','width_mm','thickness_mm','price']}
