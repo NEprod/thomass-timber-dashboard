@@ -42,6 +42,11 @@ def material_plan(quote, result=None):
     rows = db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id == quote.id)).all()
     plan = []
     for calculated in result.get('materials', []):
+        # Mastic is calculated from installed work, rather than a catalogue
+        # stock product. It is appended below so it follows the same
+        # outstanding-procurement display path without entering stock packing.
+        if calculated.get('is_calculated_consumable'):
+            continue
         material_id = calculated['material_id']
         extra = state.get(material_id).extra_quantity if material_id in state else 0
         calculated_units = int(calculated['new_purchase_units'])
@@ -59,6 +64,16 @@ def material_plan(quote, result=None):
                    unit_price=product.get('price', 0),
                    chargeable_cost=money(calculated['cost'] + extra * product.get('price', 0)))
         plan.append(row)
+    mastic_units = int(result.get('mastic_units', 0) or 0)
+    if mastic_units:
+        mastic_cost = money(result.get('mastic_cost', 0))
+        plan.append(dict(material_id='calculated-mastic', label='Mastic',
+                         category='consumable', is_calculated_consumable=True,
+                         calculated_quantity=mastic_units, extra_quantity=0,
+                         total_quantity=mastic_units, allocated_owned_quantity=0,
+                         purchased_quantity=0, need_to_purchase_quantity=mastic_units,
+                         unit_price=money(mastic_cost / mastic_units),
+                         chargeable_cost=mastic_cost))
     return plan
 
 

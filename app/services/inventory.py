@@ -131,6 +131,8 @@ def stock_recommendations(quote, plan, stocks, allocations):
     for allocation in allocations:
         existing.setdefault(allocation.material_id, []).append(allocation)
     for row in plan:
+        if row.get('is_calculated_consumable'):
+            continue
         material_id = row['material_id']
         product = quote.snapshot['catalogue'][material_id]
         candidates = [s for s in stocks if s.active and s.material_id == material_id

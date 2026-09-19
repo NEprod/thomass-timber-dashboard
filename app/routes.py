@@ -255,7 +255,7 @@ def quote_edit(quote_id):
             elif action=='refresh_prices':refresh_prices(q)
             elif action=='set_extra_material':
                 material_id=field('material_id')
-                if not any(row['material_id']==material_id for row in q.result.get('materials',[])):
+                if not any(row['material_id']==material_id and not row.get('is_calculated_consumable') for row in q.result.get('materials',[])):
                     raise CalculationError('Extra material must use a material already calculated for this quote.')
                 state=next((row for row in q.material_states if row.material_id==material_id),None)
                 quantity=whole(request.form.get('extra_quantity'),'Extra quantity')
@@ -265,7 +265,7 @@ def quote_edit(quote_id):
             elif action=='mark_material_purchased':
                 material_id=field('material_id')
                 plan=next((row for row in material_plan(q) if row['material_id']==material_id),None)
-                if not plan or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
+                if not plan or plan.get('is_calculated_consumable') or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
                 quantity=whole(request.form.get('quantity',plan['need_to_purchase_quantity']),'Purchased quantity',allow_zero=False)
                 if quantity>plan['need_to_purchase_quantity']:raise CalculationError('Purchased quantity cannot exceed the material still needed.')
                 q.purchases.append(JobPurchase(material_id=material_id,quantity=quantity,unit_price=plan['unit_price'],purchased_at=date_value('purchased_at') or date.today()))
