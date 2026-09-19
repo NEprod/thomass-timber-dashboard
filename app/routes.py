@@ -12,6 +12,9 @@ from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
 from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
 from .calculations.packing import number, CalculationError
 from .services.quotes import current_snapshot, recalculate_item, reaggregate, refresh_prices, material_plan
+from .services.inventory import (available_quantity, stock_can_satisfy,
+                                 stock_description, stock_recommendations,
+                                 validate_stock_values)
 
 web=Blueprint('web',__name__)
 STATUSES=['Draft','Measure Booked','Measured','Quoted','Sent','Accepted','Complete','Declined','Cancelled']
@@ -44,8 +47,36 @@ def whole(value, label, *, allow_zero=True, maximum=100000):
     return int(parsed)
 
 def stock_available(stock):
-    used=sum(row.quantity for row in stock.allocations)
-    return max(0, stock.quantity-used)
+    return available_quantity(stock)
+
+def stock_state(stock):
+    available=stock_available(stock)
+    reservations=[a for a in stock.allocations if not a.consumed]
+    reserved=sum(a.quantity for a in reservations)
+    if available:
+        detail=f'{available} available'
+        if reserved:detail+=f' · {reserved} reserved'
+        if stock.consumed_quantity:detail+=f' · {stock.consumed_quantity} consumed'
+        return detail
+    if reservations:
+        refs=', '.join(sorted({a.quote.reference for a in reservations}))
+        return f'Reserved — {refs}'
+    if stock.consumed_quantity:
+        return 'Consumed / no longer available'
+    return 'Unavailable'
+
+def optional_number(name, label):
+    value=request.form.get(name,'').strip()
+    return number(value,label,maximum=100000) if value else None
+
+def owned_stock_values(material):
+    stock_type=field('stock_type')
+    length,width=validate_stock_values(material,stock_type,
+                                       optional_number('usable_length_mm','Usable length'),
+                                       optional_number('usable_width_mm','Usable width'))
+    return dict(stock_type=stock_type,usable_length_mm=length,usable_width_mm=width,
+                quantity=whole(request.form.get('quantity'),'Quantity',allow_zero=False),
+                note=field('note',limit=500))
 
 def new_material_id(category, label):
     base=re.sub(r'[^a-z0-9]+','-',label.lower()).strip('-') or 'material'
@@ -207,8 +238,17 @@ def quote_edit(quote_id):
                           full_days=number(request.form.get('full_days'),'Full days',allow_zero=True,maximum=365),
                           extra_hours=number(request.form.get('extra_hours'),'Extra hours',allow_zero=True,maximum=10000),
                           measure_at=date_value('measure_at',True),quote_date=date_value('quote_date'),accepted_date=date_value('accepted_date'),planned_job_date=date_value('planned_job_date'))
+                was_complete=q.status=='Complete'
                 q.customer=customer
                 for k,v in vals.items():setattr(q,k,v)
+                if q.status=='Complete' and not was_complete:
+                    for allocation in db.session.scalars(db.select(OwnedStockAllocation).where(
+                            OwnedStockAllocation.quote_id==q.id,
+                            OwnedStockAllocation.consumed.is_(False))).all():
+                        stock=allocation.owned_stock
+                        stock.reserved_quantity=max(0,stock.reserved_quantity-allocation.quantity)
+                        stock.consumed_quantity+=allocation.quantity
+                        allocation.consumed=True
             elif action=='add_room':
                 if len(q.rooms)>=50:raise CalculationError('Maximum 50 rooms per quote.')
                 q.rooms.append(Room(name=field('name',True),position=len(q.rooms)))
@@ -230,17 +270,25 @@ def quote_edit(quote_id):
                 if quantity>plan['need_to_purchase_quantity']:raise CalculationError('Purchased quantity cannot exceed the material still needed.')
                 q.purchases.append(JobPurchase(material_id=material_id,quantity=quantity,unit_price=plan['unit_price'],purchased_at=date_value('purchased_at') or date.today()))
             elif action=='allocate_owned_stock':
+                if q.status=='Complete':raise CalculationError('Completed jobs cannot reserve additional owned stock.')
                 material_id=field('material_id')
                 stock=db.session.get(OwnedStock,request.form.get('owned_stock_id',type=int))
                 plan=next((row for row in material_plan(q) if row['material_id']==material_id),None)
                 quantity=whole(request.form.get('quantity'),'Allocation quantity',allow_zero=False)
                 if not stock or not stock.active or stock.material_id!=material_id:raise CalculationError('Choose active owned stock of the same configured product.')
-                if not plan or quantity>plan['need_to_purchase_quantity']:raise CalculationError('Allocation cannot exceed the material still needed.')
-                if quantity>stock_available(stock):raise CalculationError('That owned stock has already been committed elsewhere.')
+                if not plan:raise CalculationError('Choose owned stock for a calculated quote material.')
+                if not stock_can_satisfy(q,stock,plan['extra_quantity']):raise CalculationError('That stock cannot satisfy any current calculated cut or full-stock addition.')
+                reserved=db.session.execute(db.update(OwnedStock).where(
+                    OwnedStock.id==stock.id,OwnedStock.active.is_(True),
+                    OwnedStock.reserved_quantity+OwnedStock.consumed_quantity+quantity<=OwnedStock.quantity
+                ).values(reserved_quantity=OwnedStock.reserved_quantity+quantity))
+                if reserved.rowcount!=1:raise CalculationError('That owned stock has already been committed elsewhere.')
                 db.session.add(OwnedStockAllocation(owned_stock=stock,quote_id=q.id,material_id=material_id,quantity=quantity))
             elif action=='remove_owned_allocation':
                 allocation=db.session.get(OwnedStockAllocation,request.form.get('allocation_id',type=int))
                 if not allocation or allocation.quote_id!=q.id:abort(404)
+                if allocation.consumed:raise CalculationError('Consumed stock cannot be released.')
+                allocation.owned_stock.reserved_quantity=max(0,allocation.owned_stock.reserved_quantity-allocation.quantity)
                 db.session.delete(allocation)
             elif action=='add_consumable':
                 source=db.session.get(Consumable,request.form.get('consumable_id',type=int))
@@ -288,7 +336,11 @@ def quote_edit(quote_id):
                 if q.status!='Complete':raise CalculationError('Mark the quote Complete before recording confirmed leftover stock.')
                 material_id=field('material_id')
                 if material_id not in q.snapshot['catalogue']:raise CalculationError('Choose a saved quote material.')
-                db.session.add(OwnedStock(material_id=material_id,usable_length_mm=number(request.form.get('usable_length_mm'),'Usable leftover length',allow_zero=False),quantity=whole(request.form.get('quantity'),'Leftover quantity',allow_zero=False),note=field('note',limit=500),source_quote_id=q.id))
+                material=db.session.get(Material,material_id)
+                if not material:raise CalculationError('The saved quote material is no longer in the current catalogue.')
+                values=owned_stock_values(material)
+                values['stock_type']='offcut'
+                db.session.add(OwnedStock(material_id=material_id,source_quote_id=q.id,**values))
             elif action in ('edit_room','delete_room','add_item','edit_item','delete_item'):
                 room=next((r for r in q.rooms if r.id==request.form.get('room_id',type=int)),None)
                 if not room:abort(404)
@@ -324,7 +376,9 @@ def quote_edit(quote_id):
         except StaleDataError:db.session.rollback();abort(409,description='This quote changed in another session. Reload before editing.')
     stock=db.session.scalars(db.select(OwnedStock).where(OwnedStock.active.is_(True)).order_by(OwnedStock.id.desc())).all()
     allocations=db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id==q.id)).all()
-    return render_template('quote_edit.html',quote=q,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,today=date.today())
+    plan=material_plan(q)
+    recommendations=stock_recommendations(q,plan,stock,allocations)
+    return render_template('quote_edit.html',quote=q,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_can_satisfy=stock_can_satisfy,recommendations=recommendations,today=date.today())
 
 @web.route('/materials',methods=['GET','POST'])
 @login_required
@@ -342,6 +396,22 @@ def materials():
                 consumable.label=field('label',True);consumable.unit_label=field('unit_label',True,limit=80);consumable.price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000);consumable.active='active' in request.form
             elif request.form.get('action')=='add_material':
                 db.session.add(create_material(field('category')))
+            elif request.form.get('action')=='add_owned_stock':
+                material=db.get_or_404(Material,field('material_id'))
+                db.session.add(OwnedStock(material_id=material.id,**owned_stock_values(material)))
+            elif request.form.get('action')=='edit_owned_stock':
+                row=db.get_or_404(OwnedStock,request.form.get('stock_id',type=int))
+                material=db.get_or_404(Material,row.material_id)
+                values=owned_stock_values(material)
+                committed=row.reserved_quantity+row.consumed_quantity
+                if values['quantity']<committed:raise CalculationError(f'Quantity cannot be below the {committed} reserved or consumed pieces.')
+                if committed and any(values[key]!=getattr(row,key) for key in ('stock_type','usable_length_mm','usable_width_mm')):
+                    raise CalculationError('Release reservations before changing this stock piece’s physical dimensions.')
+                for key,value in values.items():setattr(row,key,value)
+            elif request.form.get('action')=='write_off_owned_stock':
+                row=db.get_or_404(OwnedStock,request.form.get('stock_id',type=int))
+                if row.reserved_quantity:raise CalculationError('Release this stock from its quote before writing it off.')
+                row.active=False
             else:
                 material=db.get_or_404(Material,field('material_id'))
                 vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k=='price') for k in ['length_mm','width_mm','thickness_mm','price']}
@@ -355,7 +425,7 @@ def materials():
                 material.active='active' in request.form
             db.session.commit();flash('Current catalogue updated. Existing quote snapshots are unchanged.','success');return redirect(request.path)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
-    return render_template('materials.html',materials=db.session.scalars(db.select(Material).order_by(Material.category,Material.label)).all(),pricing=db.session.get(PricingConfig,1).values,consumables=db.session.scalars(db.select(Consumable).order_by(Consumable.label)).all())
+    return render_template('materials.html',materials=db.session.scalars(db.select(Material).order_by(Material.category,Material.label)).all(),pricing=db.session.get(PricingConfig,1).values,consumables=db.session.scalars(db.select(Consumable).order_by(Consumable.label)).all(),owned_stock=db.session.scalars(db.select(OwnedStock).order_by(OwnedStock.active.desc(),OwnedStock.id.desc())).all(),stock_available=stock_available,stock_state=stock_state)
 
 @web.route('/owned-stock',methods=['GET','POST'])
 @login_required
@@ -364,16 +434,26 @@ def owned_stock():
         try:
             action=request.form.get('action')
             if action=='add':
-                material=field('material_id')
-                if not db.session.get(Material,material):raise CalculationError('Choose a current catalogue material.')
-                db.session.add(OwnedStock(material_id=material,usable_length_mm=number(request.form.get('usable_length_mm'),'Usable length',allow_zero=True),quantity=whole(request.form.get('quantity'),'Quantity',allow_zero=False),note=field('note',limit=500)))
+                material=db.session.get(Material,field('material_id'))
+                if not material:raise CalculationError('Choose a current catalogue material.')
+                db.session.add(OwnedStock(material_id=material.id,**owned_stock_values(material)))
+            elif action=='edit':
+                row=db.get_or_404(OwnedStock,request.form.get('stock_id',type=int))
+                values=owned_stock_values(db.get_or_404(Material,row.material_id))
+                committed=row.reserved_quantity+row.consumed_quantity
+                if values['quantity']<committed:raise CalculationError(f'Quantity cannot be below the {committed} reserved or consumed pieces.')
+                if committed and any(values[key]!=getattr(row,key) for key in ('stock_type','usable_length_mm','usable_width_mm')):
+                    raise CalculationError('Release reservations before changing this stock piece’s physical dimensions.')
+                for key,value in values.items():setattr(row,key,value)
             elif action=='write_off':
-                row=db.get_or_404(OwnedStock,request.form.get('stock_id',type=int));row.active=False
+                row=db.get_or_404(OwnedStock,request.form.get('stock_id',type=int))
+                if row.reserved_quantity:raise CalculationError('Release this stock from its quote before writing it off.')
+                row.active=False
             else:abort(400)
             db.session.commit();flash('Owned stock updated. Nothing changes a customer quote unless you allocate it explicitly.','success');return redirect(request.path)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
     rows=db.session.scalars(db.select(OwnedStock).order_by(OwnedStock.active.desc(),OwnedStock.id.desc())).all()
-    return render_template('owned_stock.html',stock=rows,materials=db.session.scalars(db.select(Material).where(Material.active.is_(True)).order_by(Material.label)).all(),stock_available=stock_available)
+    return render_template('owned_stock.html',stock=rows,materials=db.session.scalars(db.select(Material).where(Material.active.is_(True)).order_by(Material.label)).all(),stock_available=stock_available,stock_state=stock_state)
 
 @web.route('/settings',methods=['GET','POST'])
 @login_required

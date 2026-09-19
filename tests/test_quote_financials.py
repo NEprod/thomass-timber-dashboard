@@ -20,7 +20,7 @@ def test_quote_extras_procurement_owned_stock_and_payments(app, signed_in):
         q=db.session.get(Quote,qid);row=next(r for r in q.result['materials'] if r['material_id']==material_id)
         assert (row['calculated_quantity'],row['extra_quantity'],row['total_quantity'])==(calculated,2,calculated+2)
         assert q.result['consumable_cost']==31 and q.result['additional_charge_cost']==20
-        stock=OwnedStock(material_id=material_id,usable_length_mm=1200,quantity=1,note='Existing offcut')
+        stock=OwnedStock(material_id=material_id,stock_type='full',quantity=1,note='Existing full sheet')
         db.session.add(stock);db.session.commit();stock_id=stock.id
         charge_before=q.result['chargeable_material_cost']
     assert post_quote(signed_in,app,qid,'allocate_owned_stock',material_id=material_id,owned_stock_id=stock_id,quantity=1).status_code==302

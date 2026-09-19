@@ -5,6 +5,7 @@ from ..models import (db, Material, PricingConfig, Quote, JobMaterialState,
 from ..calculations.sections import calculate
 from ..calculations.packing import CalculationError
 from ..calculations.pricing import aggregate, money
+from .inventory import procurement_units
 
 def current_snapshot():
     config=db.session.get(PricingConfig,1)
@@ -38,19 +39,18 @@ def material_plan(quote, result=None):
     purchases = {}
     for row in quote.purchases:
         purchases[row.material_id] = purchases.get(row.material_id, 0) + row.quantity
-    allocations = {}
     rows = db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id == quote.id)).all()
-    for row in rows:
-        allocations[row.material_id] = allocations.get(row.material_id, 0) + row.quantity
     plan = []
     for calculated in result.get('materials', []):
         material_id = calculated['material_id']
         extra = state.get(material_id).extra_quantity if material_id in state else 0
         calculated_units = int(calculated['new_purchase_units'])
         total = calculated_units + extra
-        allocated = min(total, allocations.get(material_id, 0))
+        material_allocations = [row for row in rows if row.material_id == material_id]
+        allocated = sum(row.quantity for row in material_allocations)
         purchased = purchases.get(material_id, 0)
-        need = max(0, total - allocated - purchased)
+        gross_need = procurement_units(quote, calculated, extra, material_allocations)
+        need = max(0, gross_need - purchased)
         product = quote.snapshot['catalogue'].get(material_id, {})
         row = dict(calculated)
         row.update(calculated_quantity=calculated_units, extra_quantity=extra,

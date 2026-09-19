@@ -17,6 +17,43 @@
 <details class="card" open><summary><h2>Labour & calculated consumables</h2><span>Pricing rules</span></summary><form method="post">{{ token(action='pricing') }}<div class="fields three">{% for key,value in pricing.items() %}{{ input(key,key|replace('_',' ')|capitalize,value,type='number',required=True,step='any') }}{% endfor %}</div><p class="hint">Labour and mastic use required material, excluding waste. The higher of per-metre labour and time allowance is used. Final quotations round upward to £10.</p><button class="primary">Save pricing rules</button></form></details>
 <section class="card"><div class="section-heading"><h2>Quote consumables</h2><span class="pill">Package prices</span></div><p class="hint">These are optional quote-level items, separate from calculated material and from owned stock.</p>{% for c in consumables %}<details class="material-row"><summary><strong>{{ c.label }}</strong><span>{{ c.price|gbp }} / {{ c.unit_label }}</span><span class="pill">{{ 'Active' if c.active else 'Inactive' }}</span></summary><form method="post">{{ token(action='edit_consumable') }}<input type="hidden" name="consumable_id" value="{{ c.id }}"><div class="fields three">{{ input('label','Name',c.label,required=True) }}{{ input('unit_label','Package / unit label',c.unit_label,required=True) }}{{ input('price','Price · £',c.price,type='number',step='.01',required=True) }}</div><div class="actions"><label class="check"><input type="checkbox" name="active" {{ 'checked' if c.active }}>Active</label><button>Save consumable</button></div></form></details>{% endfor %}<form method="post" class="filter">{{ token(action='add_consumable') }}{{ input('label','New consumable',required=True) }}{{ input('unit_label','Package / unit',required=True) }}{{ input('price','Price · £',type='number',step='.01',required=True) }}<button>Add consumable</button></form></section>
 {% for category,title,field_label,button in [('mdf','MDF sheets','New MDF sheet','Add MDF sheet'),('bead','Bead & moulding','New bead / moulding','Add bead / moulding'),('dado','Dado catalogue','New dado rail','Add dado rail')] %}
-<section class="card"><div class="section-heading"><h2>{{ title }}</h2><span class="pill">Current stock & prices</span></div>{% for m in materials if m.category==category %}<details class="material-row"><summary><strong>{{ m.label }}</strong><span>{{ m.length_mm|int }} × {{ m.width_mm|int }} × {{ m.thickness_mm|int }} mm</span><span>{{ m.price|gbp }}</span><span class="pill">{{ 'Active' if m.active else 'Inactive' }}</span></summary><form method="post">{{ token() }}<input type="hidden" name="material_id" value="{{ m.id }}"><input type="hidden" name="edit_compatibility" value="1"><div class="fields">{{ input('label','Product label',m.label,required=True) }}{{ input('profile','Profile family',m.profile,required=True) }}</div><div class="fields four">{{ input('length_mm','Stock length · mm',m.length_mm,type='number',required=True,step='any') }}{{ input('width_mm','Width · mm',m.width_mm,type='number',required=True,step='any') }}{{ input('thickness_mm','Thickness · mm',m.thickness_mm,type='number',required=True,step='any') }}{{ input('price','Unit price · £',m.price,type='number',required=True,step='.01') }}</div>{% if m.category=='dado' %}<div class="fields three">{% for use,label in dado_uses.items() %}<label class="check"><input type="checkbox" name="uses" value="{{ use }}" {{ 'checked' if use in m.uses }}>{{ label }}</label>{% endfor %}</div><p class="hint">Stock can substitute only within the same profile family, width, thickness and permitted use.</p>{% endif %}<div class="actions"><label class="check"><input type="checkbox" name="active" {{ 'checked' if m.active }}>Active for new selections</label><button>Save material</button></div></form></details>{% endfor %}{{ material_form(category,field_label,button) }}</section>
+<section class="card">
+  <div class="section-heading"><h2>{{ title }}</h2><span class="pill">Current stock & prices</span></div>
+  {% for m in materials if m.category==category %}
+  <details class="material-row">
+    <summary><strong>{{ m.label }}</strong><span>{{ m.length_mm|int }} × {{ m.width_mm|int }} × {{ m.thickness_mm|int }} mm</span><span>{{ m.price|gbp }}</span><span class="pill">{{ 'Active' if m.active else 'Inactive' }}</span></summary>
+    <form method="post">
+      {{ token() }}<input type="hidden" name="material_id" value="{{ m.id }}"><input type="hidden" name="edit_compatibility" value="1">
+      <div class="fields">{{ input('label','Product label',m.label,required=True) }}{{ input('profile','Profile family',m.profile,required=True) }}</div>
+      <div class="fields four">{{ input('length_mm','Stock length · mm',m.length_mm,type='number',required=True,step='any') }}{{ input('width_mm','Width · mm',m.width_mm,type='number',required=True,step='any') }}{{ input('thickness_mm','Thickness · mm',m.thickness_mm,type='number',required=True,step='any') }}{{ input('price','Unit price · £',m.price,type='number',required=True,step='.01') }}</div>
+      {% if m.category=='dado' %}<div class="fields three">{% for use,label in dado_uses.items() %}<label class="check"><input type="checkbox" name="uses" value="{{ use }}" {{ 'checked' if use in m.uses }}>{{ label }}</label>{% endfor %}</div><p class="hint">Stock can substitute only within the same profile family, width, thickness and permitted use.</p>{% endif %}
+      <div class="actions"><label class="check"><input type="checkbox" name="active" {{ 'checked' if m.active }}>Active for new selections</label><button>Save material</button></div>
+    </form>
+    <div class="measurement-panel stock-panel">
+      <h4>Owned stock</h4>
+      {% for s in owned_stock if s.material_id==m.id %}
+      <form method="post" class="filter">
+        {{ token(action='edit_owned_stock') }}<input type="hidden" name="stock_id" value="{{ s.id }}">
+        <label>Type<select name="stock_type"><option value="full" {{ 'selected' if s.stock_type=='full' }}>Full stock</option><option value="offcut" {{ 'selected' if s.stock_type=='offcut' }}>Offcut</option></select></label>
+        {{ input('usable_length_mm','Usable length · mm',s.usable_length_mm,type='number',step='any') }}
+        {% if m.category=='mdf' %}{{ input('usable_width_mm','Usable width · mm',s.usable_width_mm,type='number',step='any') }}{% endif %}
+        {{ input('quantity','Quantity',s.quantity,type='number',step='1',required=True) }}{{ input('note','Note / source',s.note) }}
+        <span class="pill">{{ stock_state(s) }}</span>{% if s.active %}<button>Save stock</button>{% else %}<span class="pill">Written off</span>{% endif %}
+      </form>
+      {% if s.active %}<form method="post" data-confirm="Write off this available stock?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="write_off_owned_stock"><input type="hidden" name="stock_id" value="{{ s.id }}"><button class="danger quiet">Write off</button></form>{% endif %}
+      {% else %}<p class="hint">No physical stock recorded for this product.</p>{% endfor %}
+      <form method="post" class="filter">
+        {{ token(action='add_owned_stock') }}<input type="hidden" name="material_id" value="{{ m.id }}">
+        <label>New physical stock<select name="stock_type"><option value="full">Full stock</option><option value="offcut">Offcut</option></select></label>
+        {{ input('usable_length_mm','Offcut length · mm',type='number',step='any') }}
+        {% if m.category=='mdf' %}{{ input('usable_width_mm','Offcut width · mm',type='number',step='any') }}{% endif %}
+        {{ input('quantity','Quantity',1,type='number',step='1',required=True) }}{{ input('note','Note / source') }}<button>Add owned stock</button>
+      </form>
+      <p class="hint">For full stock, leave offcut dimensions blank. Reservations are made explicitly from a quote and never alter customer charging.</p>
+    </div>
+  </details>
+  {% endfor %}
+  {{ material_form(category,field_label,button) }}
+</section>
 {% endfor %}
 {% endblock %}
