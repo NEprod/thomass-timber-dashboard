@@ -1,5 +1,7 @@
 from copy import deepcopy
-from ..models import db, Material, PricingConfig, Quote, now
+from decimal import Decimal, ROUND_CEILING
+from ..models import (db, Material, PricingConfig, Quote, JobMaterialState,
+                      JobPurchase, OwnedStockAllocation, now)
 from ..calculations.sections import calculate
 from ..calculations.packing import CalculationError
 from ..calculations.pricing import aggregate, money
@@ -21,8 +23,63 @@ def recalculate_item(item, snapshot):
         item.result={'valid':False,'errors':[str(exc)],'groups':{},'warnings':[]}
         item.pricing_result={}
 
+def _up_to_ten(value):
+    return float((Decimal(str(value)) / Decimal('10')).to_integral_value(rounding=ROUND_CEILING) * Decimal('10'))
+
+
+def material_plan(quote, result=None):
+    """Join pure calculator demand to explicit quote procurement state.
+
+    Calculator demand remains the customer charge baseline. Owned stock only
+    changes what the workshop still needs to buy, never the customer price.
+    """
+    result = result or quote.result or {}
+    state = {row.material_id: row for row in quote.material_states}
+    purchases = {}
+    for row in quote.purchases:
+        purchases[row.material_id] = purchases.get(row.material_id, 0) + row.quantity
+    allocations = {}
+    rows = db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id == quote.id)).all()
+    for row in rows:
+        allocations[row.material_id] = allocations.get(row.material_id, 0) + row.quantity
+    plan = []
+    for calculated in result.get('materials', []):
+        material_id = calculated['material_id']
+        extra = state.get(material_id).extra_quantity if material_id in state else 0
+        calculated_units = int(calculated['new_purchase_units'])
+        total = calculated_units + extra
+        allocated = min(total, allocations.get(material_id, 0))
+        purchased = purchases.get(material_id, 0)
+        need = max(0, total - allocated - purchased)
+        product = quote.snapshot['catalogue'].get(material_id, {})
+        row = dict(calculated)
+        row.update(calculated_quantity=calculated_units, extra_quantity=extra,
+                   total_quantity=total, allocated_owned_quantity=allocated,
+                   purchased_quantity=purchased, need_to_purchase_quantity=need,
+                   unit_price=product.get('price', 0),
+                   chargeable_cost=money(calculated['cost'] + extra * product.get('price', 0)))
+        plan.append(row)
+    return plan
+
+
 def reaggregate(quote):
-    quote.result=aggregate([i.result for r in quote.rooms for i in r.items],quote.snapshot['catalogue'],quote.snapshot['pricing'],quote.full_days,quote.extra_hours)
+    result=aggregate([i.result for r in quote.rooms for i in r.items],quote.snapshot['catalogue'],quote.snapshot['pricing'],quote.full_days,quote.extra_hours)
+    plan = material_plan(quote, result)
+    extra_material_cost = money(sum(row['extra_quantity'] * row['unit_price'] for row in plan))
+    chargeable_material_cost = money(result['material_cost'] + extra_material_cost)
+    consumable_cost = money(sum(row.quantity * row.unit_price for row in quote.consumables))
+    additional_cost = money(sum(row.amount for row in quote.additional_charges))
+    paid = money(sum(row.amount for row in quote.payments))
+    deposit_base = money(chargeable_material_cost + consumable_cost + additional_cost)
+    final = _up_to_ten(money(deposit_base + result['take_home'])) if result['valid'] else None
+    result.update(materials=plan, extra_material_cost=extra_material_cost,
+                  chargeable_material_cost=chargeable_material_cost,
+                  consumable_cost=consumable_cost, additional_charge_cost=additional_cost,
+                  deposit_required=_up_to_ten(deposit_base) if result['valid'] else None,
+                  paid_total=paid, balance=money(max(0, (final or 0) - paid)),
+                  payment_status='Paid in full' if final and paid >= final else ('Part paid' if paid else 'Unpaid'),
+                  final_price=final)
+    quote.result=result
     quote.updated_at=now()
 
 

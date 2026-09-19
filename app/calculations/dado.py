@@ -46,20 +46,19 @@ class DadoCuts:
     def __init__(self, work_item_id):
         self.work_item_id = str(work_item_id)
         self.groups = {}
+        self.pending_pools = []
         self.serial = 0
 
-    def add(self, material, role, length, *, angles=None, stock_choices=None):
+    def add(self, material, role, length, *, angles=None, stock_choices=None, pool_stock=False):
         from .sections import Cut
         pieces = split_run(length, material['length_mm'])
         if self.serial + len(pieces) > 20000:
             raise CalculationError('Too many dado cuts in one calculation.')
         run_id = f'{self.work_item_id}:dado:{self.serial + 1}'
         for index, piece in enumerate(pieces, 1):
-            if stock_choices:
+            if stock_choices and not pool_stock:
                 material = min((p for p in stock_choices if p['length_mm'] >= piece),
                                key=lambda p: (p['length_mm'], p['price'], p['id']))
-            group = self.groups.setdefault('dado_' + material['id'],
-                                           {'material_id': material['id'], 'width_mm': material['width_mm'], 'cuts': []})
             self.serial += 1
             settings = dict(angles or {}, segment=index, segments=len(pieces))
             if 'start_joint_setting' in settings and index > 1:
@@ -71,9 +70,38 @@ class DadoCuts:
                             f'{role} · segment {index}/{len(pieces)}',
                             angle_information=settings,
                             join_id=run_id if len(pieces) > 1 else None))
-            group['cuts'].append(cut)
+            if pool_stock:
+                self.pending_pools.append((stock_choices, cut))
+            else:
+                group = self.groups.setdefault('dado_' + material['id'],
+                                               {'material_id': material['id'], 'width_mm': material['width_mm'], 'cuts': []})
+                group['cuts'].append(cut)
 
     def finish(self, catalogue, kerf):
+        if self.pending_pools:
+            # Stair route pieces are finished segments, not independent stock
+            # orders.  Choose one compatible raw-stock size that packs the
+            # complete route with the fewest units, then the least stock.
+            pools = {}
+            for choices, cut in self.pending_pools:
+                key = tuple(sorted(product['id'] for product in choices))
+                pools.setdefault(key, (choices, []))[1].append(cut)
+            for choices, cuts in pools.values():
+                candidates = []
+                for product in choices:
+                    try:
+                        strips = pack(cuts, product['length_mm'], kerf)
+                    except CalculationError:
+                        continue
+                    candidates.append((len(strips), len(strips) * product['length_mm'], product['price'], product['id'], product, strips))
+                if not candidates:
+                    raise CalculationError('No compatible dado stock can safely pack the required stair route.')
+                _, _, _, _, product, strips = min(candidates, key=lambda candidate: candidate[:4])
+                for cut in cuts:
+                    cut['material_id'] = product['id']
+                group = self.groups.setdefault('dado_' + product['id'],
+                                               {'material_id': product['id'], 'width_mm': product['width_mm'], 'cuts': []})
+                group['cuts'].extend(cuts)
         # Omit zero-length landings rather than charging empty stock groups.
         self.groups = {name: group for name, group in self.groups.items() if group['cuts']}
         for group in self.groups.values():
@@ -99,7 +127,7 @@ def rail(cuts, inputs, options, catalogue, *, geometry=None):
                                        ('Slope dado', 'slope_length', lower_joint, upper_joint),
                                        ('Upper landing dado', 'upper_landing', angle, None)]:
             cuts.add(product, role, number(inputs.get(key), key.replace('_', ' ').capitalize(), allow_zero=key!='slope_length'),
-                     stock_choices=choices, angles={'dado_role':'rail', 'start_joint_setting': start, 'end_joint_setting': end,
+                     stock_choices=choices, pool_stock=True, angles={'dado_role':'rail', 'start_joint_setting': start, 'end_joint_setting': end,
                              'slope_angle': geometry['slope_angle'], 'convention': convention,
                              'measurement': 'Developed route; no speculative long-point allowance. Split interiors are butt joins.'})
     return product['id']

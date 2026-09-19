@@ -70,6 +70,15 @@ def test_plain_stair_needs_only_route(stocks):
             assert stock['used_mm']==sum(c['length_mm'] for c in stock['cuts'])+3*(len(stock['cuts'])-1)
 
 
+def test_stair_route_segments_share_one_compatible_stock_length(stocks):
+    result=calculate('DADO_STAIR','Dado',STAIR,OPTIONS,stocks,3)
+    groups=list(result['groups'].values())
+    assert len(groups)==1
+    assert groups[0]['material_id']=='rail-2400'
+    assert len(groups[0]['strips'])==1
+    assert [cut['length_mm'] for cut in groups[0]['strips'][0]['cuts']]==[1200,250,250]
+
+
 def test_stair_bottom_uses_dado_fields_and_transition_provisions(stocks):
     inputs=dict(STAIR,gap_width=100,bottom_squares=4,bottom_zone_height=1000,
                 height='ignored',horizontal_squares=0,vertical_squares=0,slat_width=900)

@@ -3,3 +3,6 @@
 .dashboard-grid>*,.summary-grid>*,.two-column>*{min-width:0}
 
 .stair-metrics{margin-top:0;padding:8px 0 20px;border-top:0;grid-template-columns:repeat(2,minmax(0,1fr))}.stair-metrics>div{background:#fff;border-radius:12px;padding:14px}.stair-metrics small{font-weight:600}.stair-metrics strong{font-size:clamp(18px,2.2vw,28px);overflow-wrap:anywhere}
+/* Stair cards promote both normal and angled panel dimensions. */
+.item-results > .result-metrics:has(+ .stair-result) > div:nth-child(-n+2){display:none}
+.inline-input{width:4.5rem}
