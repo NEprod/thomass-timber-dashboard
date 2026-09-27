@@ -5,6 +5,39 @@ from .packing import CalculationError, pack
 from .pricing import money
 
 
+def _wall_spread(stocks):
+    locations = defaultdict(set)
+    for index, stock in enumerate(stocks):
+        for cut in stock['cuts']:
+            if cut.get('work_item_id') is not None:
+                locations[cut['work_item_id']].add(index)
+    return sum(len(indices) - 1 for indices in locations.values())
+
+
+def _pack_with_wall_affinity(cuts, stock_length, kerf):
+    """Prefer wall grouping only when the stock count is unchanged."""
+    baseline = pack(cuts, stock_length, kerf)
+    if not any(cut.get('work_item_id') is not None for cut in cuts):
+        return baseline
+    grouped = []
+    for cut in sorted(cuts, key=lambda cut: (cut.get('work_item_id') or '', -cut['length_mm'], cut['id'])):
+        same_wall = [stock for stock in grouped if any(
+            previous.get('work_item_id') == cut.get('work_item_id') for previous in stock['cuts'])]
+        fit = next((stock for stock in same_wall + [stock for stock in grouped if stock not in same_wall]
+                    if stock['used_mm'] + kerf + cut['length_mm'] <= stock_length + 1e-7), None)
+        if fit is None:
+            grouped.append({'cuts': [cut], 'used_mm': cut['length_mm']})
+        else:
+            fit['cuts'].append(cut)
+            fit['used_mm'] = round(fit['used_mm'] + kerf + cut['length_mm'], 6)
+    if len(grouped) > len(baseline):
+        return baseline
+    for index, stock in enumerate(grouped, 1):
+        stock.update(index=index, remainder_mm=round(stock_length - stock['used_mm'], 6),
+                     kerf_loss_mm=round(kerf * (len(stock['cuts']) - 1), 6))
+    return grouped if len(grouped) < len(baseline) or _wall_spread(grouped) < _wall_spread(baseline) else baseline
+
+
 def _dado_use(cut):
     info = cut.get('angle_information') or {}
     if info.get('dado_role') == 'square' or 'square' in cut.get('role', '').lower():
@@ -22,30 +55,35 @@ def _dado_stocks(cuts, catalogue, kerf, source_ids):
     ordered = sorted(cuts, key=lambda cut: (-cut['length_mm'], cut['id']))
     plans = []
     for base in products:
-        bins = []
-        for cut in ordered:
-            use = _dado_use(cut)
-            for bin_ in bins:
-                product = bin_['product']
-                if (use in product.get('uses', []) and
-                        bin_['used_mm'] + kerf + cut['length_mm'] <= product['length_mm'] + 1e-7):
+        for affinity in (False, True):
+            bins = []
+            candidates = (sorted(cuts, key=lambda cut: (cut.get('work_item_id') or '', -cut['length_mm'], cut['id']))
+                          if affinity else ordered)
+            for cut in candidates:
+                use = _dado_use(cut)
+                suitable = [bin_ for bin_ in bins if use in bin_['product'].get('uses', []) and
+                            bin_['used_mm'] + kerf + cut['length_mm'] <= bin_['product']['length_mm'] + 1e-7]
+                if affinity:
+                    suitable.sort(key=lambda bin_: not any(previous.get('work_item_id') == cut.get('work_item_id')
+                                                            for previous in bin_['cuts']))
+                if suitable:
+                    bin_ = suitable[0]
                     bin_['cuts'].append(cut)
                     bin_['used_mm'] = round(bin_['used_mm'] + kerf + cut['length_mm'], 6)
-                    break
-            else:
-                eligible = [product for product in products
-                            if use in product.get('uses', []) and product['length_mm'] >= cut['length_mm']]
-                if not eligible:
-                    raise CalculationError(f"{cut['label']}: no compatible continuous dado stock fits this cut.")
-                product = base if base in eligible else eligible[0]
-                bins.append({'product': product, 'cuts': [cut], 'used_mm': cut['length_mm']})
-        stock_mm = sum(bin_['product']['length_mm'] for bin_ in bins)
-        long_stock_mm = sum(max(0, bin_['product']['length_mm'] -
-                                (bin_['product'].get('preferred_stock_mm') or 3000)) for bin_ in bins)
-        score = (stock_mm, long_stock_mm, len(bins),
-                 money(sum(bin_['product']['price'] for bin_ in bins)),
-                 tuple(bin_['product']['id'] for bin_ in bins))
-        plans.append((score, bins))
+                else:
+                    eligible = [product for product in products
+                                if use in product.get('uses', []) and product['length_mm'] >= cut['length_mm']]
+                    if not eligible:
+                        raise CalculationError(f"{cut['label']}: no compatible continuous dado stock fits this cut.")
+                    product = base if base in eligible else eligible[0]
+                    bins.append({'product': product, 'cuts': [cut], 'used_mm': cut['length_mm']})
+            stock_mm = sum(bin_['product']['length_mm'] for bin_ in bins)
+            long_stock_mm = sum(max(0, bin_['product']['length_mm'] -
+                                    (bin_['product'].get('preferred_stock_mm') or 3000)) for bin_ in bins)
+            score = (stock_mm, long_stock_mm, len(bins),
+                     money(sum(bin_['product']['price'] for bin_ in bins)),
+                     _wall_spread(bins), tuple(bin_['product']['id'] for bin_ in bins))
+            plans.append((score, bins))
     if not plans:
         raise CalculationError('No compatible dado stock is available for this room.')
     bins = min(plans, key=lambda plan: plan[0])[1]
@@ -84,13 +122,15 @@ def pack_rooms(rooms, catalogue, kerf):
         for (family, width), cuts in buckets.items():
             product = catalogue[cuts[0]['material_id']]
             if product['category'] == 'mdf':
-                strips = pack(cuts, product['length_mm'], kerf)
+                strips = _pack_with_wall_affinity(cuts, product['length_mm'], kerf)
                 for index, strip in enumerate(strips, 1):
+                    source_items = {cut['work_item_id'] for cut in strip['cuts']}
                     rip = dict(id=f"{room['id']}:{product['id']}:{width}:{index}",
                                length_mm=width, width_mm=width,
                                used_length_mm=strip['used_mm'],
                                label=f'{width:g} mm MDF rip',
                                finished_cuts=strip['cuts'],
+                               work_item_id=next(iter(source_items)) if len(source_items)==1 else None,
                                wall_names=sorted({cut['wall_name'] for cut in strip['cuts']}))
                     mdf_rips[product['id']].append(rip)
                     room_demands[product['id']][room['id']].append(dict(
@@ -105,7 +145,7 @@ def pack_rooms(rooms, catalogue, kerf):
                         room_demands[stock['material_id']][room['id']].append(
                             dict(cut, _inventory_id=cut['id']))
             else:
-                for stock in pack(cuts, product['length_mm'], kerf):
+                for stock in _pack_with_wall_affinity(cuts, product['length_mm'], kerf):
                     room_stocks.append(dict(room_id=room['id'], room_name=room['name'],
                                             material_id=product['id'], category=product['category'],
                                             stock_length_mm=product['length_mm'],
@@ -118,7 +158,7 @@ def pack_rooms(rooms, catalogue, kerf):
                             dict(cut, _inventory_id=cut['id']))
         for material_id, rips in mdf_rips.items():
             product = catalogue[material_id]
-            for board in pack(rips, product['width_mm'], kerf):
+            for board in _pack_with_wall_affinity(rips, product['width_mm'], kerf):
                 room_stocks.append(dict(room_id=room['id'], room_name=room['name'],
                                         material_id=material_id, category='mdf',
                                         stock_length_mm=product['length_mm'],

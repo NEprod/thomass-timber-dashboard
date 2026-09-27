@@ -1,10 +1,14 @@
 {% if quote.result.get('room_stocks') %}
 <details class="secondary-details"><summary>Room cut plan · purchased stock, wall labels & remainders</summary>
-{% for stock in quote.result.room_stocks %}
-<div class="strip"><div class="strip-heading"><strong>{{ stock.room_name }} · {{ catalogue[stock.material_id].label }}</strong><span>{{ stock.stock_length_mm|int }} mm{% if stock.category=='mdf' %} × {{ stock.stock_width_mm|int }} mm sheet{% else %} stock{% endif %} · used {{ stock.used_mm|round(2) }} mm · kerf {{ stock.kerf_loss_mm|round(2) }} mm · remainder {{ stock.remainder_mm|round(2) }} mm</span></div>
+{% for room_id, stocks in quote.result.room_stocks|groupby('room_id') %}
+<h4>{{ stocks[0].room_name }}</h4>
+{% for stock in stocks %}
+<div class="strip"><div class="strip-heading"><strong>{{ catalogue[stock.material_id].label }}</strong><span>{{ stock.stock_length_mm|int }} mm{% if stock.category=='mdf' %} × {{ stock.stock_width_mm|int }} mm sheet{% else %} stock{% endif %} · used {{ stock.used_mm|round(2) }} mm · kerf {{ stock.kerf_loss_mm|round(2) }} mm · remainder {{ stock.remainder_mm|round(2) }} mm</span></div>
 <ul>{% for cut in stock.cuts %}
 {% if stock.category=='mdf' %}<li><strong>{{ cut.length_mm|round(2) }} mm rip</strong> · {{ cut.wall_names|join(', ') }}<ul>{% for finished in cut.finished_cuts %}<li>{{ finished.wall_name }} / {{ finished.label }} — {{ finished.length_mm|round(2) }} mm</li>{% endfor %}</ul></li>
 {% else %}<li><strong>{{ cut.length_mm|round(2) }} mm</strong> {{ cut.wall_name }} / {{ cut.label }}</li>{% endif %}
 {% endfor %}</ul></div>
-{% endfor %}</details>
+{% endfor %}
+{% endfor %}
+</details>
 {% endif %}

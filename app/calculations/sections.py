@@ -121,8 +121,10 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
         rail(dado, inputs, options, catalogue, geometry=geometry if kind=='PANELLING_STAIR_HALF' else None)
         groups.update(dado.finish(catalogue, kerf))
         warnings.append('Additional dado is a separate rail demand; bead still follows the MDF openings. Confirm placement and any rail joints independently.')
-    for group in groups.values():
-        group['strips']=pack(group['cuts'],catalogue[group['material_id']]['length_mm'],kerf)
+    # Historical strip counts remain calculation metrics. Purchased stock and
+    # the workshop cut plan are decided from all labelled cuts in the room.
+    strip_counts = {name: len(pack(group['cuts'], catalogue[group['material_id']]['length_mm'], kerf))
+                    for name, group in groups.items()}
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,
-            'horizontal_strips':sum(len(g['strips']) for key,g in groups.items() if key in ('horizontal','top_and_bottom_horizontal','middle_horizontal')),
-            'vertical_strips':len(groups.get('vertical',{}).get('strips',[]))}
+            'horizontal_strips':sum(count for key,count in strip_counts.items() if key in ('horizontal','top_and_bottom_horizontal','middle_horizontal')),
+            'vertical_strips':strip_counts.get('vertical',0)}

@@ -16,20 +16,23 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
         if not result.get('valid'): continue
         for name,group in result['groups'].items():
             product=catalogue[group['material_id']]
+            # Retain the historical rip/cut-charge basis for this item. These
+            # temporary strips are not its workshop stock or purchase plan.
+            strips=pack(group['cuts'],product['length_mm'],config['kerf'])
             row=materials.setdefault(group['material_id'],dict(material_id=product['id'],label=product['label'],category=product['category'],required_mm=0,allocated_existing_mm=0,new_purchase_units=0,strip_stock_mm=0,kerf_loss_mm=0))
             required=sum(c['length_mm'] for c in group['cuts'])
             row['required_mm']+=required
-            row['strip_stock_mm']+=len(group['strips'])*product['length_mm']
-            row['kerf_loss_mm']+=sum(x['kerf_loss_mm'] for x in group['strips'])
+            row['strip_stock_mm']+=len(strips)*product['length_mm']
+            row['kerf_loss_mm']+=sum(x['kerf_loss_mm'] for x in strips)
             if product['category']=='mdf':
-                for strip in group['strips']:
+                for strip in strips:
                     rip_demands[group['material_id']].append({'length_mm':group['width_mm'],'label':'Ledge rip' if name=='ledge' else 'Slat rip','role':name,'work_item_id':strip['cuts'][0]['work_item_id']})
                 if name=='ledge': installed_finish+=required
                 else: installed_slat+=required
             elif product['category']=='dado':
                 dado_demands[group['material_id']].extend(group['cuts']);installed_dado+=required
             else:
-                row['new_purchase_units']+=len(group['strips']);installed_finish+=required
+                row['new_purchase_units']+=len(strips);installed_finish+=required
     cost=0; total_rips=0
     for key,row in materials.items():
         product=catalogue[key]

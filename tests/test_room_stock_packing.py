@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from app.calculations.sections import calculate
 from app.calculations.pricing import aggregate
+from app.calculations.room_stock import _pack_with_wall_affinity
 from app.models import db, Customer, Quote, Room, WorkItem, OwnedStock, JobMaterialState
 from app.services.quotes import current_snapshot, recalculate_item, reaggregate, material_plan
 from test_application import post_quote
@@ -28,6 +29,52 @@ def plan(catalogue, pricing, rooms):
 
 def dado_stocks(result):
     return [stock for stock in result['room_stocks'] if stock['category'] == 'dado']
+
+
+def test_room_packs_compatible_mdf_from_full_walls_without_losing_cut_origins(catalogue, seed_data):
+    inputs=dict(wall_length=2000,height=2000,horizontal_squares=2,
+                vertical_squares=1,slat_width=100)
+    items=[(index, calculate('PANELLING_FULL','plain',inputs,{'mdf_id':'mdf-9mm'},
+                             catalogue,3,str(index))) for index in (1,2)]
+    combined=plan(catalogue,seed_data['pricing'],[room(1,*items)])
+    separate=plan(catalogue,seed_data['pricing'],[room(1,items[0]),room(2,items[1])])
+    sheets=[stock for stock in combined['room_stocks'] if stock['category']=='mdf']
+    assert len(sheets)==1
+    assert len([stock for stock in separate['room_stocks'] if stock['category']=='mdf'])==2
+    finished=[cut for sheet in sheets for rip in sheet['cuts'] for cut in rip['finished_cuts']]
+    assert sorted(cut['id'] for cut in finished)==sorted(
+        cut['id'] for _,result in items for group in result['groups'].values() for cut in group['cuts'])
+    assert {cut['wall_name'] for cut in finished}=={'Wall 1','Wall 2'}
+    assert combined['stock_material_cost']==catalogue['mdf-9mm']['price']
+    assert all('strips' not in group for _,result in items for group in result['groups'].values())
+
+
+def test_room_stock_softly_groups_wall_cuts_without_extra_stock():
+    cuts=[dict(id=str(index),work_item_id=wall,length_mm=length,label=f'Wall {wall}')
+          for index,(wall,length) in enumerate([('A',800),('B',700),('A',600),('B',500)])]
+    stocks=_pack_with_wall_affinity(cuts,1500,0)
+    assert len(stocks)==2
+    assert [{cut['work_item_id'] for cut in stock['cuts']} for stock in stocks]==[{'A'},{'B'}]
+    assert sorted(cut['id'] for stock in stocks for cut in stock['cuts'])==sorted(cut['id'] for cut in cuts)
+
+
+def test_room_keeps_bead_and_ledge_finished_demand_labelled(catalogue, seed_data):
+    bead_id=next(key for key,value in catalogue.items()
+                 if value['category']=='bead' and value['thickness_mm']==9)
+    inputs=dict(wall_length=2000,height=1000,horizontal_squares=2,
+                vertical_squares=1,slat_width=100)
+    options=dict(mdf_id='mdf-9mm',bead_id=bead_id,ledge_width=18)
+    items=[(index,calculate('PANELLING_HALF','ledge_bead',inputs,options,
+                            catalogue,3,str(index))) for index in (1,2)]
+    result=plan(catalogue,seed_data['pricing'],[room(1,*items)])
+    bead_cuts=[cut for stock in result['room_stocks'] if stock['category']=='bead'
+               for cut in stock['cuts']]
+    ledge_cuts=[cut for stock in result['room_stocks'] if stock['category']=='mdf'
+                for rip in stock['cuts'] for cut in rip['finished_cuts'] if cut['role']=='Ledge']
+    assert {cut['wall_name'] for cut in bead_cuts}=={'Wall 1','Wall 2'}
+    assert {cut['wall_name'] for cut in ledge_cuts}=={'Wall 1','Wall 2'}
+    assert len(bead_cuts)==sum(len(group['cuts']) for _,item in items
+                               for name,group in item['groups'].items() if 'bead' in name)
 
 
 def test_six_same_room_dado_walls_share_stock_and_keep_labels(catalogue, seed_data):
@@ -169,6 +216,9 @@ def test_straight_square_dimensions_and_dashboard_acceptance(app, signed_in):
         assert item.result['geometry']['square_height'] == 800
     quote_page = signed_in.get(f'/quotes/{quote_id}').get_data(as_text=True)
     assert 'Square dimensions' in quote_page and '625.0 × 800.0' in quote_page
+    assert 'Finished cuts' in quote_page and 'Room cut plan' in quote_page
+    assert 'Item stock preview' not in quote_page
+    assert quote_page.count('<h4>Living room</h4>') == 1
     assert 'Material to purchase' in quote_page
     assert 'Bottom dado squares' not in signed_in.get('/').get_data(as_text=True).split('Materials to buy')[1]
     with app.app_context():

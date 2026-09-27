@@ -5,6 +5,7 @@ from app.calculations.sections import calculate
 from app.calculations.geometry import stair_geometry
 from app.calculations.packing import pack, split_run, CalculationError
 from app.calculations.pricing import aggregate
+from app.calculations.room_stock import pack_rooms
 
 FULL=dict(wall_length=3000,height=2400,horizontal_squares=4,vertical_squares=2,slat_width=100)
 HALF=dict(FULL,height=1000,vertical_squares=1)
@@ -37,13 +38,16 @@ def test_stair_golden_packing_labels_allowance(catalogue):
     result=calc(catalogue,'STAIR_HALF',STAIR)
     assert (result['horizontal_strips'],result['vertical_strips'])==(2,3)
     horizontal=result['groups']['top_and_bottom_horizontal']
-    assert [[c['length_mm'] for c in s['cuts']] for s in horizontal['strips']]==[[1200,1200],[280,250,250,220]]
+    _, stocks=pack_rooms([dict(id=1,name='Stair room',items=[dict(id='wall-17',name='Stair wall',result=result)])],catalogue,3)
+    room_cuts=[cut for stock in stocks if stock['category']=='mdf' for rip in stock['cuts'] for cut in rip['finished_cuts']]
+    assert sorted(c['id'] for c in room_cuts)==sorted(c['id'] for group in result['groups'].values() for c in group['cuts'])
+    assert all('strips' not in group for group in result['groups'].values())
     cuts={c['role']:c for c in horizontal['cuts']}
     assert cuts['Top (Upper Landing)']['allowance_mm']==30
     assert cuts['Top (Lower Landing)']['allowance_mm']==-30
     assert cuts['Slope']['length_mm']==1200
-    for strip in horizontal['strips']:
-        for c in strip['cuts']:
+    for c in room_cuts:
+        if c['id'] in {cut['id'] for cut in horizontal['cuts']}:
             assert c['length_mm']==cuts[c['role']]['length_mm']
             assert c['work_item_id']=='wall-17'
             assert c['angle_information']['slope_mitre']==16.78
@@ -61,7 +65,9 @@ def test_bead_ledge_and_stair_supported_boundary(catalogue):
     result=calc(catalogue,'HALF',HALF,'ledge_bead',options)
     assert sum(c['length_mm'] for c in result['groups']['ledge']['cuts'])==3000
     assert sum(c['length_mm'] for c in result['groups']['ledge_beads']['cuts'])==3000
-    assert sum(len(g['strips']) for n,g in result['groups'].items() if 'bead' in n)==8
+    _, stocks=pack_rooms([dict(id=1,name='Bead room',items=[dict(id='wall-17',name='Bead wall',result=result)])],catalogue,3)
+    assert {c['id'] for stock in stocks if stock['category']=='bead' for c in stock['cuts']}=={
+        c['id'] for name,group in result['groups'].items() if 'bead' in name for c in group['cuts']}
     transition=calc(catalogue,'STAIR_HALF',STAIR,'bead',options)
     assert len(transition['groups']['stair_opening_beads']['cuts'])==20
     normal=calc(catalogue,'STAIR_HALF',dict(STAIR,lower_landing=0,upper_landing=0,slope_length=1800),'bead',options)

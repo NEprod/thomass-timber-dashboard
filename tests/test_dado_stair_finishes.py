@@ -3,6 +3,7 @@ from copy import deepcopy
 import pytest
 from app.calculations.sections import calculate, DADO_STYLES
 from app.calculations.pricing import aggregate
+from app.calculations.room_stock import pack_rooms
 from app.calculations.packing import CalculationError
 from app.calculations.stair_bead import bead_edges
 from app.calculations.geometry import stair_geometry
@@ -25,10 +26,11 @@ def test_continuous_longest_same_profile_splitting_and_labels(catalogue):
     longer=dado(catalogue,6000)
     cuts=[c for g in longer['groups'].values() for c in g['cuts']]
     assert [c['length_mm'] for c in cuts]==[4800,1200]
-    assert sum(len(g['strips']) for g in longer['groups'].values())==2
+    _, room_stocks=pack_rooms([dict(id=1,name='Workshop',items=[dict(id='dado-1',name='Dado wall',result=longer)])],catalogue,3)
+    assert len(room_stocks)==2
     assert len({c['join_id'] for c in cuts})==1
     assert all(c['work_item_id']=='dado-1' and 'segment' in c['label'] for c in cuts)
-    assert sum(catalogue[g['material_id']]['length_mm']*len(g['strips']) for g in longer['groups'].values())==6300
+    assert sum(stock['stock_length_mm'] for stock in room_stocks)==6300
 
 
 @pytest.mark.parametrize('style',['Dado Squares Bottom'])

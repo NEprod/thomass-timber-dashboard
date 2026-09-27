@@ -79,24 +79,18 @@ class DadoCuts:
 
     def finish(self, catalogue, kerf):
         if self.pending_pools:
-            # Stair route pieces are finished segments, not independent stock
-            # orders.  Choose one compatible raw-stock size that packs the
-            # complete route with the fewest units, then the least stock.
+            # Stair bends define separate finished members. The room selects
+            # purchasable stock after gathering all compatible wall cuts.
             pools = {}
             for choices, cut in self.pending_pools:
                 key = tuple(sorted(product['id'] for product in choices))
                 pools.setdefault(key, (choices, []))[1].append(cut)
             for choices, cuts in pools.values():
-                candidates = []
-                for product in choices:
-                    try:
-                        strips = pack(cuts, product['length_mm'], kerf)
-                    except CalculationError:
-                        continue
-                    candidates.append((len(strips), len(strips) * product['length_mm'], product['price'], product['id'], product, strips))
-                if not candidates:
+                longest = max(cut['length_mm'] for cut in cuts)
+                eligible = [product for product in choices if product['length_mm'] >= longest]
+                if not eligible:
                     raise CalculationError('No compatible dado stock can safely pack the required stair route.')
-                _, _, _, _, product, strips = min(candidates, key=lambda candidate: candidate[:4])
+                product = min(eligible, key=lambda candidate: (candidate['length_mm'], candidate['price'], candidate['id']))
                 for cut in cuts:
                     cut['material_id'] = product['id']
                 group = self.groups.setdefault('dado_' + product['id'],
@@ -104,8 +98,6 @@ class DadoCuts:
                 group['cuts'].extend(cuts)
         # Omit zero-length landings rather than charging empty stock groups.
         self.groups = {name: group for name, group in self.groups.items() if group['cuts']}
-        for group in self.groups.values():
-            group['strips'] = pack(group['cuts'], catalogue[group['material_id']]['length_mm'], kerf)
         return self.groups
 
 
@@ -197,25 +189,22 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
         geometry.update(square_width=first['width_mm'], square_height=first['height_mm'])
     groups = cuts.finish(catalogue, kerf)
     return {'valid': True, 'version': '1.1-dado-follow-up', 'geometry': geometry, 'groups': groups, 'warnings': warnings,
-            'horizontal_strips': sum(len(g['strips']) for g in groups.values()), 'vertical_strips': 0}
+            'horizontal_strips': sum(len(pack(g['cuts'], catalogue[g['material_id']]['length_mm'], kerf)) for g in groups.values()), 'vertical_strips': 0}
 
 
 def dado_summary(result, catalogue):
     """Read structured cuts, including older saved results, without recalculation."""
     from collections import Counter
     rail_counts, square_counts = Counter(), Counter()
-    purchases = []
     horizontal = vertical = 0
     for group in result.get('groups', {}).values():
         product = catalogue[group['material_id']]
         if product['category'] != 'dado':
             continue
-        uses = set()
         for cut in group['cuts']:
             info = cut.get('angle_information') or {}
             square = info.get('dado_role') == 'square' or 'square' in cut['role'].lower()
             if square:
-                uses.add('Square dado')
                 orientation = 'Vertical' if 'vertical' in info.get('edge', cut['role']) else 'Horizontal'
                 provision = info.get('stock_allowance', False)
                 kind = 'Transition — trim to fit' if provision else ('Angled' if 'angled' in cut['role'].lower() else 'Flat')
@@ -223,16 +212,8 @@ def dado_summary(result, catalogue):
                 horizontal += orientation == 'Horizontal'
                 vertical += orientation == 'Vertical'
             else:
-                uses.add('Main dado rail')
                 rail_counts[(cut['role'],cut['length_mm'])] += 1
-        required = sum(c['length_mm'] for c in group['cuts'])
-        units = len(group['strips'])
-        kerf = sum(s['kerf_loss_mm'] for s in group['strips'])
-        purchases.append(dict(label=product['label'],use=' + '.join(sorted(uses)),units=units,
-                              stock_mm=product['length_mm'],required_mm=required,purchased_mm=units*product['length_mm'],
-                              kerf_mm=kerf,cost=round(units*product['price'],2),remainder_mm=round(units*product['length_mm']-required-kerf,6)))
     return dict(rail=[dict(role=k[0],length_mm=k[1],count=v) for k,v in rail_counts.items()],
                 rail_count=sum(rail_counts.values()),rail_required_mm=round(sum(k[1]*v for k,v in rail_counts.items()),6),horizontal=horizontal,vertical=vertical,
                 square_count=horizontal+vertical,
-                square=[dict(orientation=k[0],kind=k[1],length_mm=k[2],profile=k[3],count=v) for k,v in square_counts.items()],
-                purchases=purchases)
+                square=[dict(orientation=k[0],kind=k[1],length_mm=k[2],profile=k[3],count=v) for k,v in square_counts.items()])

@@ -3,6 +3,7 @@ import pytest
 from app.calculations.sections import calculate,DADO_STYLES
 from app.calculations.dado import dado_summary
 from app.calculations.pricing import aggregate
+from app.calculations.room_stock import pack_rooms
 from app.calculations.packing import CalculationError
 from app.calculations.geometry import stair_route_geometry,stair_geometry
 
@@ -19,14 +20,19 @@ def stocks(catalogue):
 OPTIONS={'dado_rail_id':'rail-4800','dado_square_id':'rail-3000'}
 STAIR=dict(wall_length=1500,lower_landing=250,upper_landing=250,slope_length=1200)
 
+def planned_stocks(result, catalogue):
+    _, stocks = pack_rooms([dict(id=1,name='Workshop',items=[dict(id='dado-1',name='Dado wall',result=result)])],catalogue,3)
+    return [stock for stock in stocks if stock['category']=='dado']
+
 @pytest.mark.parametrize('length,expected',[(5743,[4800,1000]),(4800,[4800]),(4900,[4800,1000]),(12001,[4800,4800,3000]),(943,[1000])])
 def test_residual_stock_is_smallest_compatible(stocks,seed_data,length,expected):
     result=calculate('DADO_STRAIGHT','Dado',{'wall_length':length},OPTIONS,stocks,3)
     summary=dado_summary(result,stocks)
-    purchases=[p['stock_mm'] for p in summary['purchases'] for _ in range(p['units'])]
+    room_stocks=planned_stocks(result,stocks)
+    purchases=[stock['stock_length_mm'] for stock in room_stocks]
     assert sorted(purchases)==sorted(expected)
-    assert sum(p['required_mm'] for p in summary['purchases'])==length
-    assert sum(p['remainder_mm'] for p in summary['purchases'])==sum(expected)-length
+    assert sum(cut['length_mm'] for stock in room_stocks for cut in stock['cuts'])==length
+    assert sum(stock['remainder_mm']+stock['kerf_loss_mm'] for stock in room_stocks)==sum(expected)-length
     assert summary['rail_count']==len(expected)
     totals=aggregate([result],stocks,seed_data['pricing'])
     assert totals['stock_material_cost']==round(sum(expected)/500,2)
@@ -42,7 +48,7 @@ def test_stock_compatibility_and_kerf(stocks):
     for p in stocks.values():
         if p['id']=='rail-1000':p['active']=False
     result=calculate('DADO_STRAIGHT','Dado',{'wall_length':5743},OPTIONS,stocks,3)
-    assert sorted(p['stock_mm'] for p in dado_summary(result,stocks)['purchases'])==[2400,4800]
+    assert sorted(stock['stock_length_mm'] for stock in planned_stocks(result,stocks))==[2400,4800]
     with pytest.raises(CalculationError):calculate('DADO_STRAIGHT','Dado',{'wall_length':5743},OPTIONS,stocks,-1)
 
 
@@ -53,9 +59,10 @@ def test_straight_piece_summary_from_actual_cuts(stocks):
     summary=dado_summary(result,stocks)
     assert (summary['rail_count'],summary['horizontal'],summary['vertical'],summary['square_count'])==(1,8,8,16)
     assert sorted((p['count'],p['length_mm']) for p in summary['square'])==[(8,625),(8,800)]
-    cuts=[c for g in result['groups'].values() for stock in g['strips'] for c in stock['cuts']]
+    cuts=[c for g in result['groups'].values() for c in g['cuts']]
     assert len(cuts)==17 and all(c['label'] for c in cuts)
     assert all(c['length_mm']<=stocks[c['material_id']]['length_mm'] for c in cuts)
+    assert all('strips' not in g for g in result['groups'].values())
 
 
 def test_plain_stair_needs_only_route(stocks):
@@ -65,9 +72,8 @@ def test_plain_stair_needs_only_route(stocks):
     summary=dado_summary(result,stocks)
     assert summary['rail_count']==3 and summary['square_count']==0
     assert {p['role']:p['length_mm'] for p in summary['rail']}=={'Lower landing dado':250,'Slope dado':1200,'Upper landing dado':250}
-    for group in result['groups'].values():
-        for stock in group['strips']:
-            assert stock['used_mm']==sum(c['length_mm'] for c in stock['cuts'])+3*(len(stock['cuts'])-1)
+    for stock in planned_stocks(result,stocks):
+        assert stock['used_mm']==sum(c['length_mm'] for c in stock['cuts'])+3*(len(stock['cuts'])-1)
 
 
 def test_stair_route_segments_share_one_compatible_stock_length(stocks):
@@ -75,8 +81,9 @@ def test_stair_route_segments_share_one_compatible_stock_length(stocks):
     groups=list(result['groups'].values())
     assert len(groups)==1
     assert groups[0]['material_id']=='rail-2400'
-    assert len(groups[0]['strips'])==1
-    assert [cut['length_mm'] for cut in groups[0]['strips'][0]['cuts']]==[1200,250,250]
+    stocks_for_room=planned_stocks(result,stocks)
+    assert len(stocks_for_room)==1 and stocks_for_room[0]['stock_length_mm']==2400
+    assert [cut['length_mm'] for cut in stocks_for_room[0]['cuts']]==[1200,250,250]
 
 
 def test_stair_bottom_uses_dado_fields_and_transition_provisions(stocks):
