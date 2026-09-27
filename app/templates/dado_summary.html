@@ -6,7 +6,7 @@
     <div class="measurement-panel"><h3>Main dado rail</h3><p><strong>{{ ds.rail_count }} installed pieces</strong> · required {{ ds.rail_required_mm }} mm</p><ul>{% for piece in ds.rail %}<li>{{ piece.role }} — {{ piece.count }} × {{ piece.length_mm }} mm</li>{% endfor %}</ul></div>
     {% if ds.square_count %}<div class="measurement-panel"><h3>Square dado pieces</h3><p><strong>{{ ds.square_count }} total</strong> · Horizontal: {{ ds.horizontal }} · Vertical: {{ ds.vertical }}</p><ul>{% for piece in ds.square %}<li>{{ piece.orientation }} · {{ piece.kind }} — {{ piece.count }} × {{ piece.length_mm }} mm<small>{{ piece.profile }}</small></li>{% endfor %}</ul></div>{% endif %}
   </div>
-  <h3>Stock requirement</h3><p class="hint">Standalone item requirements below. The quote material plan pools identical products across items and shows what still needs to be purchased. Finished cuts are not stock lengths.</p>
+  <h3>Item stock preview</h3><p class="hint">This preview packs this work item alone. The room cut plan in Materials, charges & payments determines normal purchasing across compatible walls in the same room. Finished cuts remain separate.</p>
   <div class="table-wrap"><table><thead><tr><th>Use / profile</th><th>Need to purchase</th><th>Required</th><th>Stock provision</th><th>Kerf</th><th>Remainder</th><th>Stock cost</th></tr></thead><tbody>{% for stock in ds.purchases %}<tr><td>{{ stock.use }}<small>{{ stock.label }}</small></td><td>{{ stock.units }} × {{ stock.stock_mm }} mm</td><td>{{ stock.required_mm|round(2) }} mm</td><td>{{ stock.purchased_mm|round(2) }} mm</td><td>{{ stock.kerf_mm|round(2) }} mm</td><td>{{ stock.remainder_mm|round(2) }} mm</td><td>{{ stock.cost|gbp }}</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endif %}

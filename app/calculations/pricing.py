@@ -7,7 +7,7 @@ from .packing import pack, number
 def money(value):
     return float(Decimal(str(value)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
 
-def aggregate(results, catalogue, config, days=0, hours=0):
+def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     days=number(days,'Full days',allow_zero=True,maximum=365)
     hours=number(hours,'Extra hours',allow_zero=True,maximum=10000)
     materials={}; rip_demands=defaultdict(list); dado_demands=defaultdict(list)
@@ -60,7 +60,15 @@ def aggregate(results, catalogue, config, days=0, hours=0):
     time_allowance=money(days*config['day_rate']+hours*config['hourly_rate']) if has_work else 0
     take_home=max(labour,time_allowance)
     valid=all(r.get('valid') for r in results)
-    return dict(valid=valid,materials=list(materials.values()),required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),
+    if rooms is not None:
+        from .room_stock import pack_rooms
+        room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'])
+        materials = {row['material_id']: row for row in room_materials}
+        cost = money(sum(row['cost'] for row in room_materials))
+        material_cost = money(cost + mastic_cost + cut_cost + delivery)
+    else:
+        room_stocks = []
+    return dict(valid=valid,materials=list(materials.values()),room_stocks=room_stocks,required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),
                 stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,delivery_cost=delivery,
                 material_cost=material_cost,labour_cost=labour,time_allowance=time_allowance,take_home=take_home,
                 final_price=math.ceil(money(material_cost+take_home)/10)*10 if valid else None)

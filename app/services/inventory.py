@@ -26,6 +26,10 @@ def stock_description(stock, product):
 
 def material_demands(quote, material_id):
     """Return existing physical demand without changing calculator geometry."""
+    planned = next((row for row in quote.result.get('materials', [])
+                    if row.get('material_id') == material_id and 'room_demands' in row), None)
+    if planned is not None:
+        return [cut for room in planned['room_demands'] for cut in room['cuts']]
     product = quote.snapshot['catalogue'][material_id]
     demands = []
     serial = 0
@@ -50,6 +54,13 @@ def material_demands(quote, material_id):
                         demand['_inventory_id'] = f'cut-{item.id}-{serial}'
                         demands.append(demand)
     return demands
+
+
+def _demands_by_room(quote, calculated):
+    room_demands = calculated.get('room_demands')
+    if room_demands is not None:
+        return [list(room['cuts']) for room in room_demands]
+    return [material_demands(quote, calculated['material_id'])]
 
 
 def _take_linear_piece(demands, length, kerf):
@@ -95,19 +106,29 @@ def procurement_units(quote, calculated, extra_quantity, allocations):
     if not allocations:
         return int(calculated['new_purchase_units']) + extra_quantity
     kerf = quote.snapshot['pricing']['kerf']
-    demands = material_demands(quote, material_id)
+    rooms = _demands_by_room(quote, calculated)
     unused_full = 0
     pieces = sorted(_expanded_stock(allocations),
                     key=lambda s: stock_dimensions(s, product))
     for stock in pieces:
         length, width = stock_dimensions(stock, product)
-        if product['category'] == 'mdf':
-            demands, used = _take_sheet_piece(demands, length, width, kerf)
-        else:
-            demands, used = _take_linear_piece(demands, length, kerf)
-        if not used and stock.stock_type == 'full':
+        candidates = []
+        for index, demands in enumerate(rooms):
+            if product['category'] == 'mdf':
+                remaining, used = _take_sheet_piece(demands, length, width, kerf)
+            else:
+                remaining, used = _take_linear_piece(demands, length, kerf)
+            if used:
+                before = _normal_units(demands, product, kerf)
+                after = _normal_units(remaining, product, kerf)
+                candidates.append((before - after, len(demands) - len(remaining), -index,
+                                   index, remaining))
+        if candidates:
+            _, _, _, index, remaining = max(candidates)
+            rooms[index] = remaining
+        elif stock.stock_type == 'full':
             unused_full += 1
-    return _normal_units(demands, product, kerf) + max(0, extra_quantity - unused_full)
+    return sum(_normal_units(demands, product, kerf) for demands in rooms) + max(0, extra_quantity - unused_full)
 
 
 def stock_can_satisfy(quote, stock, extra_quantity=0):
@@ -126,6 +147,8 @@ def stock_can_satisfy(quote, stock, extra_quantity=0):
 
 def stock_recommendations(quote, plan, stocks, allocations):
     """Greedily retain stock unless one physical piece reduces purchases."""
+    if 'room_stocks' in quote.result:
+        return _room_stock_recommendations(quote, plan, stocks, allocations)
     by_material = {}
     existing = {}
     for allocation in allocations:
@@ -173,10 +196,71 @@ def stock_recommendations(quote, plan, stocks, allocations):
 
 
 class _ProposedAllocation:
-    def __init__(self, stock, material_id):
+    def __init__(self, stock, material_id, room_id=None):
         self.owned_stock = stock
         self.material_id = material_id
+        self.room_id = room_id
         self.quantity = 1
+        self.id = -stock.id
+        self.stock_length_mm = None
+        self.stock_width_mm = None
+
+
+def _room_stock_recommendations(quote, plan, stocks, allocations):
+    from .room_procurement import (compatible, family, procurement_plan,
+                                   stock_fits_room)
+
+    def outstanding(simulated):
+        needs, unused = procurement_plan(quote, allocations=simulated)
+        extras = sum(max(0, row.extra_quantity - unused[row.material_id])
+                     for row in quote.material_states)
+        return sum(needs.values()) + extras
+
+    suggestions = {}
+    seen = set()
+    simulated = list(allocations)
+    before = outstanding(simulated)
+    for row in plan:
+        if row.get('is_calculated_consumable'):
+            continue
+        material_id = row['material_id']
+        key = family(quote.snapshot['catalogue'], material_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates = [stock for stock in stocks if stock.active and available_quantity(stock)
+                      and compatible(quote.snapshot['catalogue'], stock.material_id, material_id)]
+        candidates.sort(key=lambda stock: stock_dimensions(
+            stock, quote.snapshot['catalogue'][stock.material_id]))
+        accepted = Counter()
+        retained = None
+        for stock in candidates:
+            for _ in range(available_quantity(stock)):
+                possible = []
+                for room in quote.rooms:
+                    if not stock_fits_room(quote, stock, room.id, row['extra_quantity']):
+                        continue
+                    proposal = _ProposedAllocation(stock, stock.material_id, room.id)
+                    after = outstanding(simulated + [proposal])
+                    possible.append((after, room.id, proposal))
+                if possible and min(possible)[0] < before:
+                    after, _, proposal = min(possible)
+                    simulated.append(proposal)
+                    accepted[stock.id] += 1
+                    before = after
+                elif possible:
+                    retained = retained or 'Keep compatible stock — using it does not reduce the required purchase.'
+                else:
+                    retained = retained or 'Keep compatible stock — no current calculated cut fits.'
+        if accepted:
+            by_id = {stock.id: stock for stock in candidates}
+            descriptions = [f'{quantity} × {stock_description(by_id[stock_id], quote.snapshot["catalogue"][by_id[stock_id].material_id])}'
+                            for stock_id, quantity in accepted.items()]
+            suggestions[material_id] = dict(stock=dict(accepted),
+                text=f"Recommended: use {', '.join(descriptions)} — reduces purchase requirement.")
+        elif retained:
+            suggestions[material_id] = dict(stock={}, text=retained)
+    return suggestions
 
 
 def validate_stock_values(material, stock_type, usable_length, usable_width):

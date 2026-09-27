@@ -37,6 +37,10 @@ def test_existing_material_charges_are_visible_without_changing_totals(app, sign
     assert 'Delivery' in quote_page
     assert 'Mastic' in quote_page
 
+    with app.app_context():
+        quote = db.session.get(Quote, quote_id)
+        quote.status = 'Accepted'
+        db.session.commit()
     dashboard = signed_in.get('/').get_data(as_text=True)
     assert 'Mastic' in dashboard
     assert 'tubes' in dashboard
