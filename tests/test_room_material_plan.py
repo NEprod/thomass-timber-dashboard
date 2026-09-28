@@ -43,6 +43,13 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     page = signed_in.get(f'/quotes/{quote_id}').get_data(as_text=True)
     assert 'Living room' in page and 'Hall &amp; stairs' in page
     assert 'material-plan-row' in page and 'Reserved pieces</th>' not in page
+    assert 'class="material-table"' in page
+    for heading in ('Calculated', 'Extra', 'Total', 'Reserved', 'Material to purchase', 'Charge', 'Actions'):
+        assert f'<th scope="col">{heading}</th>' in page
+    assert 'Save Extra' not in page and 'Mark purchased' in page
+    assert 'Owned stock & reservations' in page
+    assert 'Quote-level material' in page
+    assert 'Quote consumables' in page and 'Additional charges' in page and 'Customer payments' in page
     assert '<select name="room_id"' not in page
 
     assert post_quote(signed_in, app, quote_id, 'set_extra_material',
