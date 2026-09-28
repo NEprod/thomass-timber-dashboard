@@ -97,7 +97,7 @@ def new_material_id(category, label):
     return candidate
 
 def create_material(category):
-    if category not in ('mdf','bead','dado'):raise CalculationError('Choose a valid material family.')
+    if category not in ('mdf','bead','dado','coving'):raise CalculationError('Choose a valid material family.')
     label=field('label',True)
     uses=request.form.getlist('uses')
     if any(use not in USES for use in uses):raise CalculationError('Unknown material use.')
@@ -422,7 +422,7 @@ def quote_edit(quote_id):
                         item.name=field('name',True);item.type=field('type');item.subtype=field('subtype')
                         item.notes=field('notes',limit=5000)
                         item.position=int(number(request.form.get('position',0),'Item order',allow_zero=True,maximum=1000))
-                        item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset']}
+                        item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset','start_corner','end_corner']}
                         item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice','dado_rail_id','dado_square_id']}
                         item.options['dado_enabled']='dado_enabled' in request.form
                         recalculate_item(item,q.snapshot)
@@ -446,7 +446,7 @@ def materials():
         try:
             if request.form.get('action')=='pricing':
                 config=db.session.get(PricingConfig,1)
-                vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k=='kerf' else 100000) for k in config.values}
+                vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k in ('kerf','coving_kerf') else 100000) for k in config.values}
                 config.values=vals
             elif request.form.get('action')=='add_consumable':
                 db.session.add(Consumable(label=field('label',True),unit_label=field('unit_label',True,limit=80),price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000)))

@@ -8,4 +8,10 @@ def seed():
         if db.session.get(Material,row['id']) is None: db.session.add(Material(**row))
     if db.session.get(PricingConfig,1) is None:
         db.session.add(PricingConfig(id=1,values=data['pricing']))
+    else:
+        config = db.session.get(PricingConfig,1)
+        values = dict(config.values)
+        for key, value in data['pricing'].items():
+            values.setdefault(key, value)
+        config.values = values
     db.session.commit()

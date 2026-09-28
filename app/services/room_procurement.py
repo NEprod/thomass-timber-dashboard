@@ -3,6 +3,8 @@ from collections import Counter, defaultdict
 
 from ..calculations.packing import pack
 from ..calculations.room_stock import _dado_stocks, _dado_use
+from ..calculations.room_stock import _coving_stocks
+from ..calculations.materials import kerf_for
 from ..models import db, OwnedStockAllocation
 from .inventory import stock_dimensions, stock_can_satisfy
 
@@ -18,15 +20,15 @@ def compatible(catalogue, left_id, right_id):
     left, right = catalogue.get(left_id), catalogue.get(right_id)
     if not left or not right or left['category'] != right['category']:
         return False
-    if left['category'] == 'dado':
+    if left['category'] in ('dado', 'coving'):
         return all(left[key] == right[key] for key in ('profile', 'width_mm', 'thickness_mm'))
     return left_id == right_id
 
 
 def family(catalogue, material_id):
     product = catalogue[material_id]
-    if product['category'] == 'dado':
-        return ('dado', product['profile'], product['width_mm'], product['thickness_mm'])
+    if product['category'] in ('dado', 'coving'):
+        return (product['category'], product['profile'], product['width_mm'], product['thickness_mm'])
     return ('product', material_id)
 
 
@@ -118,7 +120,7 @@ def procurement_plan(quote, result=None, allocations=None):
     if 'room_stocks' not in result:
         return None
     catalogue = quote.snapshot['catalogue']
-    kerf = quote.snapshot['pricing']['kerf']
+    pricing = quote.snapshot['pricing']
     demands = defaultdict(list)
     for stock in result['room_stocks']:
         key = (stock['room_id'], family(catalogue, stock['material_id']))
@@ -127,7 +129,9 @@ def procurement_plan(quote, result=None, allocations=None):
     for piece in physical_pieces(quote, allocations):
         key = (piece['room_id'], family(catalogue, piece['material_id']))
         cuts = demands.get(key, [])
-        remaining = _consume(cuts, piece, catalogue[piece['material_id']]['category'], kerf)
+        product = catalogue[piece['material_id']]
+        kerf = kerf_for(product, pricing)
+        remaining = _consume(cuts, piece, product['category'], kerf)
         if len(remaining) == len(cuts) and piece['full']:
             unused_full[piece['material_id']] += 1
         demands[key] = remaining
@@ -136,6 +140,7 @@ def procurement_plan(quote, result=None, allocations=None):
         if not cuts:
             continue
         product = catalogue[cuts[0]['material_id']]
+        kerf = kerf_for(product, pricing)
         if product['category'] == 'dado':
             stocks = _dado_stocks(cuts, catalogue, kerf, {cut['material_id'] for cut in cuts})
             for stock in stocks:
@@ -147,6 +152,10 @@ def procurement_plan(quote, result=None, allocations=None):
             needs[(room_id, product['id'])] += len(pack(
                 [dict(cut, length_mm=cut['width_mm']) for cut in cuts],
                 product['width_mm'], kerf))
+        elif product['category'] == 'coving':
+            stocks = _coving_stocks(cuts, catalogue, kerf, {cut['material_id'] for cut in cuts})
+            for stock in stocks:
+                needs[(room_id, stock['material_id'])] += 1
         else:
             needs[(room_id, product['id'])] += len(pack(cuts, product['length_mm'], kerf))
     return needs, unused_full

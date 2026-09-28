@@ -3,6 +3,7 @@ from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from .packing import pack, number
+from .materials import kerf_for
 
 def money(value):
     return float(Decimal(str(value)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
@@ -11,14 +12,15 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     days=number(days,'Full days',allow_zero=True,maximum=365)
     hours=number(hours,'Extra hours',allow_zero=True,maximum=10000)
     materials={}; rip_demands=defaultdict(list); dado_demands=defaultdict(list)
-    installed_slat=installed_finish=installed_dado=0
+    installed_slat=installed_finish=installed_dado=installed_coving=0
     for result in results:
         if not result.get('valid'): continue
         for name,group in result['groups'].items():
             product=catalogue[group['material_id']]
             # Retain the historical rip/cut-charge basis for this item. These
             # temporary strips are not its workshop stock or purchase plan.
-            strips=pack(group['cuts'],product['length_mm'],config['kerf'])
+            material_kerf=kerf_for(product,config)
+            strips=pack(group['cuts'],product['length_mm'],material_kerf)
             row=materials.setdefault(group['material_id'],dict(material_id=product['id'],label=product['label'],category=product['category'],required_mm=0,allocated_existing_mm=0,new_purchase_units=0,strip_stock_mm=0,kerf_loss_mm=0))
             required=sum(c['length_mm'] for c in group['cuts'])
             row['required_mm']+=required
@@ -31,6 +33,8 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
                 else: installed_slat+=required
             elif product['category']=='dado':
                 dado_demands[group['material_id']].extend(group['cuts']);installed_dado+=required
+            elif product['category']=='coving':
+                row['new_purchase_units']+=len(strips);installed_coving+=required
             else:
                 row['new_purchase_units']+=len(strips);installed_finish+=required
     cost=0; total_rips=0
@@ -59,19 +63,20 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     cut_cost=money((total_rips+1)*config['cut_cost_per_strip']) if total_rips else 0
     delivery=config['delivery_cost'] if has_work else 0
     material_cost=money(cost+mastic_cost+cut_cost+delivery)
-    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp'])
+    coving_m=installed_coving/1000
+    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp']+coving_m*config.get('coving_per_m_gbp',6.5))
     time_allowance=money(days*config['day_rate']+hours*config['hourly_rate']) if has_work else 0
     take_home=max(labour,time_allowance)
     valid=all(r.get('valid') for r in results)
     if rooms is not None:
         from .room_stock import pack_rooms
-        room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'])
+        room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10))
         materials = {row['material_id']: row for row in room_materials}
         cost = money(sum(row['cost'] for row in room_materials))
         material_cost = money(cost + mastic_cost + cut_cost + delivery)
     else:
         room_stocks = []
-    return dict(valid=valid,materials=list(materials.values()),room_stocks=room_stocks,required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),
+    return dict(valid=valid,materials=list(materials.values()),room_stocks=room_stocks,required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),required_coving_m=round(coving_m,6),
                 stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,delivery_cost=delivery,
                 material_cost=material_cost,labour_cost=labour,time_allowance=time_allowance,take_home=take_home,
                 final_price=math.ceil(money(material_cost+take_home)/10)*10 if valid else None)

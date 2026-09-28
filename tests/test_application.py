@@ -138,7 +138,9 @@ def test_actual_migration_and_idempotent_seed(tmp_path):
     first=runner.invoke(args=['init-db']);assert first.exit_code==0,first.output
     second=runner.invoke(args=['init-db']);assert second.exit_code==0,second.output
     with application.app_context():
-        assert db.session.scalar(db.select(db.func.count(Material.id)))==31
+        assert db.session.scalar(db.select(db.func.count(Material.id)))==33
+        assert db.session.get(Material,'coving-127x127-3m').price==10
+        assert db.session.get(Material,'coving-127x127-3.6m').price==12
         assert db.session.get(PricingConfig,1).values['kerf']==3
         assert db.session.scalar(db.select(db.func.count(User.id)))==0
         assert db.session.get(Material,'dado-45mm-3m').preferred_stock_mm==3000

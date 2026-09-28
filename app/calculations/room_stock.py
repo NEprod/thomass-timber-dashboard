@@ -99,7 +99,51 @@ def _dado_stocks(cuts, catalogue, kerf, source_ids):
     return stocks
 
 
-def pack_rooms(rooms, catalogue, kerf):
+def _coving_stocks(cuts, catalogue, kerf, source_ids):
+    """Pack continuous Coving members into its compatible 3000/3600 stock."""
+    first = catalogue[cuts[0]['material_id']]
+    products = sorted((p for p in catalogue.values() if p['category'] == 'coving'
+                       and (p.get('active', True) or p['id'] in source_ids)
+                       and all(p[k] == first[k] for k in ('profile', 'width_mm', 'thickness_mm'))),
+                      key=lambda p: (p['length_mm'], p['price'], p['id']))
+    if not products:
+        raise CalculationError('No compatible Coving stock is available for this room.')
+    plans = []
+    orders = [sorted(cuts, key=lambda c: (-c['length_mm'], c['id'])),
+              sorted(cuts, key=lambda c: (c.get('work_item_id') or '', -c['length_mm'], c['id']))]
+    for order in orders:
+        bins = []
+        for cut in order:
+            suitable = [b for b in bins if b['used_mm'] + kerf + cut['length_mm'] <= b['product']['length_mm'] + 1e-7]
+            suitable.sort(key=lambda b: (not any(c.get('work_item_id') == cut.get('work_item_id') for c in b['cuts']),
+                                         b['product']['length_mm'] - b['used_mm']))
+            if suitable:
+                bin_ = suitable[0]
+                bin_['cuts'].append(cut)
+                bin_['used_mm'] = round(bin_['used_mm'] + kerf + cut['length_mm'], 6)
+            else:
+                eligible = [p for p in products if p['length_mm'] >= cut['length_mm']]
+                if not eligible:
+                    raise CalculationError(f"{cut.get('label', 'Coving run')}: no continuous Coving stock fits this cut.")
+                product = min(eligible, key=lambda p: (p['length_mm'], p['price'], p['id']))
+                bins.append({'product': product, 'cuts': [cut], 'used_mm': cut['length_mm']})
+        score = (sum(b['product']['length_mm'] for b in bins),
+                 money(sum(b['product']['price'] for b in bins)), len(bins),
+                 _wall_spread(bins), tuple(b['product']['id'] for b in bins))
+        plans.append((score, bins))
+    bins = min(plans, key=lambda p: p[0])[1]
+    stocks = []
+    for bin_ in bins:
+        product = bin_['product']
+        packed = pack([dict(c, material_id=product['id']) for c in bin_['cuts']], product['length_mm'], kerf)[0]
+        stocks.append(dict(material_id=product['id'], category='coving',
+                           stock_length_mm=product['length_mm'], stock_width_mm=product['width_mm'],
+                           cuts=packed['cuts'], used_mm=packed['used_mm'],
+                           kerf_loss_mm=packed['kerf_loss_mm'], remainder_mm=packed['remainder_mm']))
+    return stocks
+
+
+def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
     """Return chargeable stock and a workshop plan, without altering item results."""
     room_stocks = []
     room_demands = defaultdict(lambda: defaultdict(list))
@@ -114,13 +158,15 @@ def pack_rooms(rooms, catalogue, kerf):
             for group in result.get('groups', {}).values():
                 product = catalogue[group['material_id']]
                 family = (('dado', product['profile'], product['width_mm'], product['thickness_mm'])
-                          if product['category'] == 'dado' else ('product', product['id']))
+                          if product['category'] in ('dado', 'coving')
+                          else ('product', product['id']))
                 for cut in group['cuts']:
                     labelled = dict(cut, work_item_id=cut.get('work_item_id') or str(item['id']),
                                     wall_name=item['name'], room_name=room['name'])
                     buckets[(family, group['width_mm'])].append(labelled)
         for (family, width), cuts in buckets.items():
             product = catalogue[cuts[0]['material_id']]
+            group_kerf = coving_kerf if product['category'] == 'coving' else kerf
             if product['category'] == 'mdf':
                 strips = _pack_with_wall_affinity(cuts, product['length_mm'], kerf)
                 for index, strip in enumerate(strips, 1):
@@ -144,8 +190,16 @@ def pack_rooms(rooms, catalogue, kerf):
                     for cut in stock['cuts']:
                         room_demands[stock['material_id']][room['id']].append(
                             dict(cut, _inventory_id=cut['id']))
+            elif product['category'] == 'coving':
+                source_ids = {cut['material_id'] for cut in cuts}
+                for stock in _coving_stocks(cuts, catalogue, group_kerf, source_ids):
+                    stock.update(room_id=room['id'], room_name=room['name'])
+                    room_stocks.append(stock)
+                    for cut in stock['cuts']:
+                        room_demands[stock['material_id']][room['id']].append(
+                            dict(cut, _inventory_id=cut['id']))
             else:
-                for stock in _pack_with_wall_affinity(cuts, product['length_mm'], kerf):
+                for stock in _pack_with_wall_affinity(cuts, product['length_mm'], group_kerf):
                     room_stocks.append(dict(room_id=room['id'], room_name=room['name'],
                                             material_id=product['id'], category=product['category'],
                                             stock_length_mm=product['length_mm'],

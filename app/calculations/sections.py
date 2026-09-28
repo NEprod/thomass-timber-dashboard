@@ -7,7 +7,8 @@ from .geometry import stair_geometry, WORKSHOP_ALLOWANCE_MM
 
 TYPES = {'PANELLING_FULL':'Full square panelling','PANELLING_HALF':'Half square panelling',
          'PANELLING_STAIR_HALF':'Stair half-wall panelling',
-         'DADO_STRAIGHT':'Straight dado', 'DADO_STAIR':'Stair dado rail'}
+         'DADO_STRAIGHT':'Straight dado', 'DADO_STAIR':'Stair dado rail',
+         'COVING':'Coving'}
 SUBTYPES = {'plain':'Plain','bead':'With bead','ledge':'With ledge','ledge_bead':'With ledge & bead'}
 DADO_STYLES = ['Dado','Dado Squares Top & Bottom','Dado Double Squares Top & Bottom','Dado Squares Bottom','Dado Double Squares Bottom']
 VERSION = '1.0-measured-legacy'
@@ -26,7 +27,9 @@ class Cut:
     angle_information: dict | None = None
     join_id: str | None = None
 
-def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='preview'):
+def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='preview', coving_kerf=None):
+    if kind == 'COVING':
+        return calculate_coving(inputs, catalogue, work_item_id, kerf if coving_kerf is None else coving_kerf)
     if kind in ('DADO_STRAIGHT', 'DADO_STAIR'):
         from .dado import calculate_dado
         return calculate_dado(kind, subtype, inputs, options, catalogue, kerf, work_item_id)
@@ -128,3 +131,40 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,
             'horizontal_strips':sum(count for key,count in strip_counts.items() if key in ('horizontal','top_and_bottom_horizontal','middle_horizontal')),
             'vertical_strips':strip_counts.get('vertical',0)}
+
+
+def calculate_coving(inputs, catalogue, work_item_id='preview', kerf=10):
+    """Coving creates one continuous, labelled finished length per wall."""
+    wall_length = number(inputs.get('wall_length'), 'Wall length')
+    start = inputs.get('start_corner', 'Internal')
+    end = inputs.get('end_corner', 'Internal')
+    corners = ('Internal', 'External')
+    if start not in corners or end not in corners:
+        raise CalculationError('Choose Internal or External for both Coving corners.')
+    prototype = catalogue.get('coving-127x127-3m') or catalogue.get('coving-127x127-3.6m')
+    if not prototype:
+        raise CalculationError('The 127 × 127 Coving stock family is missing from this quote catalogue.')
+    products = [p for p in catalogue.values() if p.get('category') == 'coving'
+                and p.get('profile') == prototype['profile']
+                and all(p[k] == prototype[k] for k in ('width_mm', 'thickness_mm'))
+                and p.get('active', True)]
+    if not products:
+        raise CalculationError('No active Coving stock is available in this quote catalogue.')
+    maximum = max(float(p['length_mm']) for p in products)
+    profile_dimension = float(prototype['width_mm'])
+    allowance = profile_dimension * (int(start == 'External') + int(end == 'External'))
+    finished = wall_length + allowance
+    if finished > maximum + 1e-7:
+        raise CalculationError(f'This Coving run needs {finished:g} mm, longer than the longest available continuous stock ({maximum:g} mm). Coving joining is not configured.')
+    number(kerf, 'Coving kerf', allow_zero=True, maximum=50)
+    product = min((p for p in products if p['length_mm'] >= finished),
+                  key=lambda p: (p['length_mm'], p['price'], p['id']))
+    cut = asdict(Cut(str(work_item_id)+':coving:1', str(work_item_id), str(product['id']),
+                     'Coving', finished, product['width_mm'], 'Coving run', join_id=None))
+    group = {'material_id': str(product['id']), 'width_mm': product['width_mm'], 'cuts': [cut]}
+    return {'valid': True, 'version': VERSION, 'geometry': {
+                'wall_length': wall_length, 'start_corner': start, 'end_corner': end,
+                'external_allowance_mm': allowance, 'finished_cut_length': finished},
+            'groups': {'coving': group}, 'warnings': [],
+            'horizontal_strips': len(pack([cut], product['length_mm'], kerf)),
+            'vertical_strips': 0}

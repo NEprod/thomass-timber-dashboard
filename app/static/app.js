@@ -26,26 +26,29 @@ for (const form of document.querySelectorAll('.item-form')) {
   const type = form.elements.type, finish = form.elements.subtype;
   function update() {
     const dado = type.value.startsWith('DADO_');
+    const coving = type.value === 'COVING';
     const stair = type.value === 'PANELLING_STAIR_HALF' || type.value === 'DADO_STAIR';
     for (const option of finish.options) {
       option.disabled = option.dataset.family !== (dado ? 'dado' : 'panelling') ||
         (type.value === 'PANELLING_FULL' && option.value.includes('ledge')) ||
         (dado && !['Dado','Dado Squares Bottom'].includes(option.value));
     }
-    if (finish.selectedOptions[0]?.dataset.family !== (dado ? 'dado' : 'panelling') || (type.value === 'PANELLING_FULL' && finish.value.includes('ledge'))) finish.value = dado ? 'Dado' : 'plain';
+    if (finish.selectedOptions[0]?.dataset.family !== (dado ? 'dado' : 'panelling') || (type.value === 'PANELLING_FULL' && finish.value.includes('ledge')) || coving) finish.value = dado ? 'Dado' : 'plain';
     const show = (selector, visible) => form.querySelectorAll(selector).forEach(el => el.hidden = !visible);
-    show('.stair-fields', stair);
-    show('.mdf-stair-note', !dado);
-    show('.bead-fields', !dado && finish.value.includes('bead'));
-    show('.ledge-fields', !dado && finish.value.includes('ledge'));
-    show('.dado-toggle-fields', !dado);
-    show('.rail-fields', dado || form.elements.dado_enabled.checked);
+    show('.stair-fields', stair && !coving);
+    show('.mdf-stair-note', !dado && !coving);
+    show('.bead-fields', !dado && !coving && finish.value.includes('bead'));
+    show('.ledge-fields', !dado && !coving && finish.value.includes('ledge'));
+    show('.dado-toggle-fields', !dado && !coving);
+    show('.rail-fields', !coving && (dado || form.elements.dado_enabled.checked));
     show('.dado-gap-fields', dado && finish.value !== 'Dado');
     show('.dado-layout-fields', dado && finish.value !== 'Dado');
     show('.dado-top-fields', finish.value.includes('Top & Bottom'));
     show('.dado-inner-fields', finish.value.includes('Double'));
-    for (const name of ['slat_width','mdf_id']) form.elements[name].closest('label').hidden = dado;
-    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado;
+    form.querySelector('.subtype-field').hidden = coving;
+    show('.coving-fields', coving);
+    for (const name of ['slat_width','mdf_id']) form.elements[name].closest('label').hidden = dado || coving;
+    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado || coving;
     const use = stair ? 'stair_dado' : 'continuous_dado';
     for (const option of form.elements.dado_rail_id.options) option.disabled = !!option.value && !option.dataset.uses.split(' ').includes(use);
 
