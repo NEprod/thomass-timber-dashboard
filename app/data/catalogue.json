@@ -496,6 +496,7 @@
     "coving_kerf": 10,
     "coving_per_m_gbp": 6.5,
     "mastic_unit_price": 2.9,
+    "mastic_on_hand": 0,
     "mastic_linear_coverage": 11.5,
     "cut_cost_per_strip": 2.0,
     "delivery_cost": 10.0,

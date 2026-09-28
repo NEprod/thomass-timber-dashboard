@@ -49,6 +49,7 @@ class Quote(db.Model):
     payments = db.relationship('Payment', back_populates='quote', cascade='all, delete-orphan', order_by='Payment.paid_at, Payment.id')
     material_states = db.relationship('JobMaterialState', back_populates='quote', cascade='all, delete-orphan')
     purchases = db.relationship('JobPurchase', back_populates='quote', cascade='all, delete-orphan')
+    receipts = db.relationship('Receipt', back_populates='quote', cascade='all, delete-orphan', order_by='Receipt.id.desc()')
     @property
     def reference(self): return f'TT-{self.id:06d}'
 
@@ -74,6 +75,31 @@ class WorkItem(db.Model):
     result = db.Column(db.JSON, default=dict, nullable=False)
     pricing_result = db.Column(db.JSON, default=dict, nullable=False)
     room = db.relationship('Room', back_populates='items')
+    photos = db.relationship('WorkItemPhoto', back_populates='work_item', cascade='all, delete-orphan', order_by='WorkItemPhoto.id')
+
+
+class WorkItemPhoto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    work_item_id = db.Column(db.Integer, db.ForeignKey('work_item.id'), nullable=False)
+    stored_filename = db.Column(db.String(100), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=now, nullable=False)
+    caption = db.Column(db.String(500), nullable=False, default='')
+    work_item = db.relationship('WorkItem', back_populates='photos')
+
+
+class Receipt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    quote_id = db.Column(db.Integer, db.ForeignKey('quote.id'), nullable=False)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id'))
+    supplier = db.Column(db.String(200), nullable=False)
+    receipt_date = db.Column(db.Date, nullable=False)
+    receipt_total = db.Column(db.Numeric(12, 2), nullable=False)
+    stored_filename = db.Column(db.String(100), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=now, nullable=False)
+    quote = db.relationship('Quote', back_populates='receipts')
+    room = db.relationship('Room')
 
 class Material(db.Model):
     id = db.Column(db.String(100), primary_key=True)

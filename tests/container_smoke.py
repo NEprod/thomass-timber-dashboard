@@ -46,6 +46,20 @@ def main():
         with client.open(base + path, data=data, timeout=15) as response:
             return response.read().decode(), response.geturl()
 
+    def post_file(path, quote_id, fields, field_name, filename, mime, blob):
+        page, _ = get(f'/quotes/{quote_id}')
+        token = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
+        boundary = 'timber-' + uuid.uuid4().hex
+        chunks = []
+        for key, value in dict(fields, csrf_token=token).items():
+            chunks.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode())
+        chunks.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\nContent-Type: {mime}\r\n\r\n'.encode() + blob + b'\r\n')
+        chunks.append(f'--{boundary}--\r\n'.encode())
+        request = urllib.request.Request(base + path, data=b''.join(chunks),
+            headers={'Content-Type': 'multipart/form-data; boundary=' + boundary})
+        with client.open(request, timeout=20) as response:
+            return response.read(), response.geturl()
+
     def query(sql):
         script = 'import sqlite3,json,sys; c=sqlite3.connect("file:/data/timber.db?mode=ro",uri=True); print(json.dumps(c.execute(sys.argv[1]).fetchall()))'
         return json.loads(docker('exec', name, 'python', '-c', script, sql))
@@ -94,6 +108,20 @@ def main():
         quote_post(qid, 'edit_item', room_id=rid, item_id=iid, name='Full wall', type='PANELLING_FULL',
                    subtype='plain', mdf_id='mdf-9mm', ledge_width=18, position=0, wall_length=3000,
                    height=2400, horizontal_squares=4, vertical_squares=2, slat_width=100)
+        photo_bytes = b'\x89PNG\r\n\x1a\ncontainer-photo'
+        pdf = b'%PDF-1.4\n%%EOF'
+        post_file(f'/quotes/{qid}/items/{iid}/photos', qid, {}, 'photos', 'wall.png', 'image/png', photo_bytes)
+        post_file(f'/quotes/{qid}/receipts', qid,
+                  {'supplier': 'Smoke supplier', 'receipt_date': '2026-09-28',
+                   'receipt_total': '10.00', 'room_id': str(rid)},
+                  'file', 'receipt.pdf', 'application/pdf', pdf)
+        photo_name = query('SELECT stored_filename FROM work_item_photo')[0][0]
+        receipt_name = query('SELECT stored_filename FROM receipt')[0][0]
+        photo_path = f'/uploads/job-images/{qid}/{iid}/{photo_name}'
+        receipt_path = f'/uploads/receipts/{qid}/{receipt_name}'
+        assert docker('exec', name, 'test', '-f', photo_path) == ''
+        assert docker('exec', name, 'test', '-f', receipt_path) == ''
+        assert docker('exec', name, 'test', '-f', '/data/logs/app.log') == ''
         assert json.loads(query('SELECT result FROM quote')[0][0])['valid']
         pricing = json.loads(query('SELECT "values" FROM pricing_config')[0][0])
         pricing['delivery_cost'] = pricing['delivery_cost'] + 7
@@ -102,7 +130,8 @@ def main():
                                thickness_mm=9, price=27, active='on'))
         assert query("SELECT price FROM material WHERE id='mdf-9mm'")[0][0] == 27
         assert json.loads(query('SELECT "values" FROM pricing_config')[0][0]) == pricing
-        tables = ('user', 'customer', 'quote', 'room', 'work_item', 'material', 'pricing_config', 'alembic_version')
+        tables = ('user', 'customer', 'quote', 'room', 'work_item', 'work_item_photo',
+                  'receipt', 'material', 'pricing_config', 'alembic_version')
         before = {table: query(f'SELECT * FROM "{table}" ORDER BY 1') for table in tables}
         key_hash = docker('exec', name, 'python', '-c', 'import hashlib; print(hashlib.sha256(open("/data/session.key","rb").read()).hexdigest())')
         docker('exec', name, 'python', '-c', 'from pathlib import Path; Path("/uploads/persistence-probe").write_text("retained")')
@@ -112,6 +141,11 @@ def main():
         assert {table: query(f'SELECT * FROM "{table}" ORDER BY 1') for table in tables} == before
         assert docker('exec', name, 'python', '-c', 'import hashlib; print(hashlib.sha256(open("/data/session.key","rb").read()).hexdigest())') == key_hash
         assert docker('exec', name, 'cat', '/uploads/persistence-probe') == 'retained'
+        assert docker('exec', name, 'test', '-f', photo_path) == ''
+        assert docker('exec', name, 'test', '-f', receipt_path) == ''
+        assert docker('exec', name, 'test', '-f', '/data/logs/app.log') == ''
+        assert 'wall.png' in get(f'/quotes/{qid}')[0]
+        assert 'Smoke supplier' in get('/receipts')[0]
         assert 'Persistent deployment quote' in get(f'/quotes/{qid}')[0]  # original signed cookie survives
         assert get('/setup')[1] == base + '/'
         anonymous = urllib.request.build_opener()

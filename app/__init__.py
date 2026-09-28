@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import secrets
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import timedelta
 import click
 from flask import Flask, render_template
@@ -15,6 +17,30 @@ login=LoginManager()
 csrf=CSRFProtect()
 migrate=Migrate()
 
+
+class ReadableRotatingFileHandler(RotatingFileHandler):
+    def _open(self):
+        stream=super()._open()
+        os.chmod(self.baseFilename,0o644)
+        return stream
+
+
+def configure_file_logging(app):
+    """Keep a bounded operational log in the existing persistent data mount."""
+    log_dir=Path(app.config['DATA_DIR'])/'logs'
+    log_dir.mkdir(parents=True,exist_ok=True)
+    os.chmod(log_dir,0o755)
+    log_file=log_dir/'app.log'
+    for handler in list(app.logger.handlers):
+        if isinstance(handler,ReadableRotatingFileHandler):
+            app.logger.removeHandler(handler)
+            handler.close()
+    handler=ReadableRotatingFileHandler(log_file,maxBytes=10*1024*1024,backupCount=5)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s'))
+    handler.setLevel(logging.INFO)
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
+
 @event.listens_for(Engine,'connect')
 def sqlite_pragmas(connection, record):
     if type(connection).__module__=='sqlite3':
@@ -27,11 +53,12 @@ def create_app(test_config=None):
     app.config.update(SQLALCHEMY_DATABASE_URI='sqlite:///'+str(data/'timber.db'),SQLALCHEMY_TRACK_MODIFICATIONS=False,
                       SECRET_KEY=os.environ.get('SECRET_KEY'),SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Lax',
                       SESSION_COOKIE_SECURE=os.environ.get('TIMBER_SECURE_COOKIES')=='1',PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-                      MAX_CONTENT_LENGTH=1024*1024,DATA_DIR=str(data),DEBUG=False,
+                      MAX_CONTENT_LENGTH=260*1024*1024,MAX_UPLOAD_FILE_BYTES=25*1024*1024,DATA_DIR=str(data),DEBUG=False,
                       UPLOAD_DIR=str(Path(os.environ.get('UPLOAD_DIR',data/'uploads')).resolve()))
     if test_config:app.config.update(test_config)
     if not app.config.get('TESTING'):
         data.mkdir(parents=True,exist_ok=True)
+        configure_file_logging(app)
         if not app.config['SECRET_KEY']:
             key_file=data/'session.key'
             try:
@@ -41,6 +68,7 @@ def create_app(test_config=None):
             app.config['SECRET_KEY']=key_file.read_text().strip()
         if os.environ.get('TIMBER_ENV')=='production' and len(app.config['SECRET_KEY'])<32:
             raise RuntimeError('Production SECRET_KEY must contain at least 32 characters; check the environment or persistent session.key.')
+        app.logger.info('Application configured with persistent data and upload paths.')
     db.init_app(app);login.init_app(app);csrf.init_app(app)
     migrate.init_app(app,db,directory=str(Path(app.root_path).parent/'migrations'))
     login.login_view='web.login_view'
@@ -49,7 +77,9 @@ def create_app(test_config=None):
         try:return db.session.get(User,int(user_id))
         except ValueError:return None
     from .routes import web
+    from .upload_routes import uploads
     app.register_blueprint(web)
+    app.register_blueprint(uploads)
     @app.template_filter('gbp')
     def gbp(value):return '—' if value is None else f'£{value:,.2f}'
     @app.cli.command('init-db')

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% from 'macros.html' import token %}
+{% block title %}Receipts · Thomas Timber{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">PURCHASING</p><h1>Receipts</h1><p class="muted">Job receipts and supporting files</p></div></div>
+<section class="card"><form method="get" class="fields four"><label>Quote / job<input name="job" value="{{ filters.job }}"></label><label>Customer<input name="customer" value="{{ filters.customer }}"></label><label>Room<input name="room" value="{{ filters.room }}"></label><label>Supplier<input name="supplier" value="{{ filters.supplier }}"></label><button>Filter receipts</button></form></section>
+<section class="card"><div class="table-wrap"><table class="receipt-table"><thead><tr><th>Quote / customer</th><th>Room</th><th>Supplier</th><th>Receipt date</th><th>Total</th><th>File / uploaded</th><th></th></tr></thead><tbody>
+{% for receipt in receipts %}<tr><td data-label="Job"><a href="{{ url_for('web.quote_edit',quote_id=receipt.quote_id) }}#receipts">{{ receipt.quote.reference }} · {{ receipt.quote.title }}</a><small>{{ receipt.quote.customer.name }}</small></td><td data-label="Room">{{ receipt.room.name if receipt.room else 'Whole job' }}</td><td data-label="Supplier">{{ receipt.supplier }}</td><td data-label="Date">{{ receipt.receipt_date }}</td><td data-label="Total">{{ receipt.receipt_total|gbp }}</td><td data-label="File"><a href="{{ url_for('uploads.view_receipt',receipt_id=receipt.id) }}" target="_blank" rel="noopener">{{ receipt.original_filename }}</a><small>Uploaded {{ receipt.uploaded_at.strftime('%d %b %Y') }}</small></td><td><form method="post" action="{{ url_for('uploads.delete_receipt',receipt_id=receipt.id) }}" data-confirm="Delete this receipt and its file?">{{ token() }}<button class="danger quiet">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="7" class="empty">No receipts match these filters.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

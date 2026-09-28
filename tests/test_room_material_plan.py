@@ -53,7 +53,7 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     assert 'quote-total-panel' in page
     assert 'Mastic ·' in page and 'Cut charge' in page and 'Delivery' in page
     assert 'Saved price snapshot' in page and 'Edit saved charge or payment' in page
-    assert '<select name="room_id"' not in page
+    assert '<select name="room_id"' not in page.split('<section class="card" id="receipts">')[0]
 
     assert post_quote(signed_in, app, quote_id, 'set_extra_material',
                       material_id=material_id, room_id=living, extra_quantity=1).status_code == 302

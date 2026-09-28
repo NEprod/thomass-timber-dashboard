@@ -1,0 +1,16 @@
+<details class="secondary-details work-photos" {% if item.photos %}open{% endif %}>
+  <summary>Work item photos <span>{{ item.photos|length }} attached</span></summary>
+  {% if item.photos %}<div class="photo-strip">
+    {% for photo in item.photos %}<div class="photo-tile">
+      <a href="{{ url_for('uploads.view_item_photo',quote_id=quote.id,item_id=item.id,photo_id=photo.id) }}" target="_blank" rel="noopener" aria-label="Open {{ photo.original_filename }}">
+        <img src="{{ url_for('uploads.view_item_photo',quote_id=quote.id,item_id=item.id,photo_id=photo.id) }}" alt="{{ photo.caption or photo.original_filename }}" loading="lazy">
+      </a>
+      <small>{{ photo.caption or photo.original_filename }}</small>
+      <form method="post" action="{{ url_for('uploads.delete_item_photo',quote_id=quote.id,item_id=item.id,photo_id=photo.id) }}" data-confirm="Delete this photo?">{{ token() }}<button class="danger quiet">Delete</button></form>
+    </div>{% endfor %}
+  </div>{% endif %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('uploads.upload_item_photos',quote_id=quote.id,item_id=item.id) }}" class="fields three">{{ token() }}
+    <label>Photos · JPG/PNG<input type="file" name="photos" accept="image/jpeg,image/png" multiple required></label>
+    {{ input('caption','Optional caption') }}<button>Upload photos</button>
+  </form><p class="hint">Up to 10 images per upload, 25 MB each. HEIC is not supported; export as JPG first.</p>
+</details>

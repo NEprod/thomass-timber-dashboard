@@ -16,6 +16,7 @@ from .services.inventory import (available_quantity,
                                  stock_description, stock_dimensions, stock_recommendations,
                                  validate_stock_values)
 from .services.room_procurement import assigned_room, compatible, stock_fits_room, stock_fits_quote
+from .services.uploads import remove_upload, photo_dir
 
 web=Blueprint('web',__name__)
 STATUSES=['Draft','Measure Booked','Measured','Quoted','Sent','Accepted','Complete','Declined','Cancelled']
@@ -236,6 +237,7 @@ def quote_edit(quote_id):
     q=db.get_or_404(Quote,quote_id)
     if request.method=='POST':
         if request.form.get('revision',type=int)!=q.revision:abort(409,description='This quote changed in another tab. Reload before editing.')
+        photos_to_remove=[]
         try:
             action=request.form.get('action')
             if action=='details':
@@ -288,15 +290,17 @@ def quote_edit(quote_id):
                     state.room_id=room.id
             elif action=='mark_material_purchased':
                 material_id=field('material_id')
-                room=quote_room(q)
+                room=None if material_id=='calculated-mastic' else quote_room(q)
                 plan=next((row for row in material_plan(q) if row['material_id']==material_id
-                           and row.get('room_id')==room.id),None)
-                if not plan or plan.get('is_calculated_consumable') or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
+                           and row.get('room_id')==(room.id if room else None)),None)
+                if not plan or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
                 quantity=whole(request.form.get('quantity',1),'Purchased quantity',allow_zero=False)
                 if quantity>plan['need_to_purchase_quantity']:raise CalculationError('Purchased quantity cannot exceed the material still needed.')
-                product=q.snapshot['catalogue'][material_id]
-                q.purchases.append(JobPurchase(material_id=material_id,room_id=room.id,
-                    stock_length_mm=product['length_mm'],stock_width_mm=product['width_mm'],
+                product=q.snapshot['catalogue'].get(material_id)
+                if product is None and material_id!='calculated-mastic':raise CalculationError('Choose a saved quote material.')
+                q.purchases.append(JobPurchase(material_id=material_id,room_id=room.id if room else None,
+                    stock_length_mm=product['length_mm'] if product else None,
+                    stock_width_mm=product['width_mm'] if product else None,
                     quantity=quantity,unit_price=plan['unit_price'],
                     purchased_at=date_value('purchased_at') or date.today()))
             elif action=='allocate_owned_stock':
@@ -330,6 +334,8 @@ def quote_edit(quote_id):
                     if record_type=='reservation' else [])
                 record=next((row for row in records if row.id==record_id),None)
                 if record is None:raise CalculationError('Choose a saved purchase or reservation.')
+                if record_type=='purchase' and record.material_id=='calculated-mastic':
+                    raise CalculationError('Mastic is quote-level and has no room assignment.')
                 record.room_id=room.id
             elif action=='remove_owned_allocation':
                 allocation=db.session.get(OwnedStockAllocation,request.form.get('allocation_id',type=int))
@@ -402,6 +408,9 @@ def quote_edit(quote_id):
                         raise CalculationError('Assign this room’s purchases and reservations to another room before removing it.')
                     for state in room_extras:
                         q.material_states.remove(state)
+                    photos_to_remove=[(item.id,photo.stored_filename) for item in room.items for photo in item.photos]
+                    for receipt in q.receipts:
+                        if receipt.room_id==room.id:receipt.room_id=None
                     q.rooms.remove(room)
                 elif action=='edit_room':
                     room.name=field('name',True);room.notes=field('notes',limit=5000)
@@ -415,7 +424,9 @@ def quote_edit(quote_id):
                 else:
                     item=next((i for i in room.items if i.id==request.form.get('item_id',type=int)),None)
                     if not item:abort(404)
-                    if action=='delete_item':room.items.remove(item)
+                    if action=='delete_item':
+                        photos_to_remove=[(item.id,photo.stored_filename) for photo in item.photos]
+                        room.items.remove(item)
                     else:
                         if field('type').startswith('DADO_') and field('subtype') not in SUPPORTED_DADO_STYLES:
                             raise CalculationError('This dado style is coming later. The saved item and its results have been kept unchanged; choose an available style explicitly to replace it.')
@@ -427,7 +438,9 @@ def quote_edit(quote_id):
                         item.options['dado_enabled']='dado_enabled' in request.form
                         recalculate_item(item,q.snapshot)
             else:abort(400,description='Unknown quote action.')
-            reaggregate(q);db.session.commit();flash('Quote saved. Calculations and totals updated.','success')
+            reaggregate(q);db.session.commit()
+            for item_id,name in photos_to_remove:remove_upload(photo_dir(q.id,item_id),name)
+            flash('Quote saved. Calculations and totals updated.','success')
             anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ('#quote-financials' if action in ('set_extra_material','assign_extra_material','mark_material_purchased','allocate_owned_stock','remove_owned_allocation','assign_physical_stock','add_consumable','edit_consumable','delete_consumable','add_charge','edit_charge','delete_charge','add_payment','mark_deposit_paid','edit_payment','delete_payment','record_leftover') else '')
             return redirect(request.path+anchor)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
@@ -446,7 +459,7 @@ def materials():
         try:
             if request.form.get('action')=='pricing':
                 config=db.session.get(PricingConfig,1)
-                vals={k:number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k in ('kerf','coving_kerf') else 100000) for k in config.values}
+                vals={k:(whole(request.form.get(k),'Mastic quantity on hand') if k=='mastic_on_hand' else number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k in ('kerf','coving_kerf') else 100000)) for k in config.values}
                 config.values=vals
             elif request.form.get('action')=='add_consumable':
                 db.session.add(Consumable(label=field('label',True),unit_label=field('unit_label',True,limit=80),price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000)))

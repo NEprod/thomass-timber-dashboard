@@ -13,8 +13,12 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     hours=number(hours,'Extra hours',allow_zero=True,maximum=10000)
     materials={}; rip_demands=defaultdict(list); dado_demands=defaultdict(list)
     installed_slat=installed_finish=installed_dado=installed_coving=0
+    measured_coving=0
     for result in results:
         if not result.get('valid'): continue
+        if result.get('geometry',{}).get('finished_cut_length') is not None and any(
+                catalogue[g['material_id']]['category']=='coving' for g in result['groups'].values()):
+            measured_coving+=result['geometry']['wall_length']
         for name,group in result['groups'].items():
             product=catalogue[group['material_id']]
             # Retain the historical rip/cut-charge basis for this item. These
@@ -58,7 +62,7 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
         row['cost']=money(row['new_purchase_units']*product['price']);cost+=row['cost']
     has_work=bool(materials)
     slat_m,finish_m,dado_m=installed_slat/1000,installed_finish/1000,installed_dado/1000
-    mastic=math.ceil((slat_m+finish_m+dado_m)/config['mastic_linear_coverage']*1.5) if has_work else 0
+    mastic=math.ceil((slat_m+finish_m+dado_m+2*measured_coving/1000)/config['mastic_linear_coverage']*1.5) if has_work else 0
     mastic_cost=money(mastic*config['mastic_unit_price'])
     cut_cost=money((total_rips+1)*config['cut_cost_per_strip']) if total_rips else 0
     delivery=config['delivery_cost'] if has_work else 0

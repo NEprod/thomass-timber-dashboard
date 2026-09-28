@@ -117,11 +117,15 @@ def material_plan(quote, result=None):
     mastic_units = int(result.get('mastic_units', 0) or 0)
     if mastic_units:
         mastic_cost = money(result.get('mastic_cost', 0))
+        config = db.session.get(PricingConfig, 1)
+        on_hand = int(config.values.get('mastic_on_hand', 0)) if config else 0
+        purchased = sum(p.quantity for p in quote.purchases if p.material_id == 'calculated-mastic')
         plan.append(dict(material_id='calculated-mastic', label='Mastic',
                          category='consumable', is_calculated_consumable=True,
                          calculated_quantity=mastic_units, extra_quantity=0,
-                         total_quantity=mastic_units, allocated_owned_quantity=0,
-                         purchased_quantity=0, need_to_purchase_quantity=mastic_units,
+                         total_quantity=mastic_units, allocated_owned_quantity=on_hand,
+                         purchased_quantity=purchased,
+                         need_to_purchase_quantity=max(0, mastic_units - on_hand - purchased),
                          unit_price=money(mastic_cost / mastic_units),
                          chargeable_cost=mastic_cost, room_id=None, room_name=None,
                          is_quote_level=True))
