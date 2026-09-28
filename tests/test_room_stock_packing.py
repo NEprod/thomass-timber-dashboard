@@ -130,7 +130,7 @@ def test_rooms_remain_separate_and_stair_members_choose_practical_stock(catalogu
     assert dado_stocks(single)[0]['stock_length_mm'] == 3000
 
 
-def test_existing_quote_opens_and_recalculation_uses_saved_prices(app, signed_in):
+def test_current_quote_opens_and_recalculation_uses_saved_prices(app, signed_in):
     with app.app_context():
         customer = Customer(name='Room packing customer')
         quote = Quote(customer=customer, title='Existing saved quote', snapshot=current_snapshot(),
@@ -147,22 +147,17 @@ def test_existing_quote_opens_and_recalculation_uses_saved_prices(app, signed_in
         for item in living.items:
             recalculate_item(item, quote.snapshot)
         quote.material_states.append(JobMaterialState(material_id='dado-45mm-1.5m',
-                                                       extra_quantity=1))
+                                                       room_id=living.id, extra_quantity=1))
         reaggregate(quote)
         extra_charge = quote.result['extra_material_cost']
-        old_result = deepcopy(quote.result)
-        old_result.pop('room_stocks')
-        for row in old_result['materials']:
-            row.pop('room_demands', None)
-        quote.result = old_result
         saved_snapshot = deepcopy(quote.snapshot)
         saved_snapshot['catalogue']['dado-45mm-1.8m']['price'] = 77
         quote.snapshot = saved_snapshot
         db.session.commit()
         quote_id, room_id, item_id = quote.id, living.id, living.items[0].id
         snapshot = deepcopy(quote.snapshot)
-    old_page = signed_in.get(f'/quotes/{quote_id}')
-    assert old_page.status_code == 200 and b'Existing saved quote' in old_page.data
+    page = signed_in.get(f'/quotes/{quote_id}')
+    assert page.status_code == 200 and b'Existing saved quote' in page.data
     response = post_quote(signed_in, app, quote_id, 'edit_item', room_id=room_id,
                           item_id=item_id, name='Wall 1', type='DADO_STRAIGHT',
                           subtype='Dado', wall_length=900, dado_rail_id='dado-45mm-3m',

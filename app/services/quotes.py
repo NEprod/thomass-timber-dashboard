@@ -6,7 +6,6 @@ from ..models import (db, Material, PricingConfig, Quote, JobMaterialState,
 from ..calculations.sections import calculate
 from ..calculations.packing import CalculationError
 from ..calculations.pricing import aggregate, money
-from .inventory import procurement_units
 from .room_procurement import procurement_plan, assigned_room
 
 def current_snapshot():
@@ -41,17 +40,8 @@ def material_plan(quote, result=None):
     states = defaultdict(list)
     for state in quote.material_states:
         states[state.material_id].append(state)
-    purchases = defaultdict(int)
-    assigned_purchases = defaultdict(int)
-    for row in quote.purchases:
-        purchases[row.material_id] += row.quantity
-        room_id = assigned_room(quote, row)
-        if room_id is not None:
-            assigned_purchases[(room_id, row.material_id)] += row.quantity
     rows = db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id == quote.id)).all()
-    assigned_allocations = [row for row in rows if assigned_room(quote, row) is not None]
-    physical = procurement_plan(quote, result)
-    room_needs, unused_full = physical if physical is not None else (None, None)
+    room_needs, unused_full = procurement_plan(quote, result)
     persisted_material_rows = [row for row in result.get('materials', [])
                                if not row.get('is_calculated_consumable')]
     normal = {}
@@ -65,7 +55,7 @@ def material_plan(quote, result=None):
     for material_id, row in normal.items():
         if row.get('room_id') is not None:
             row['new_purchase_units'] = row.get('calculated_quantity', row.get('new_purchase_units', 0))
-    needed_ids = {material_id for _, material_id in room_needs} if room_needs is not None else set()
+    needed_ids = {material_id for _, material_id in room_needs}
     material_ids = list(normal) + sorted((needed_ids | set(states)) - set(normal))
     plan = []
     for material_id in material_ids:
@@ -83,63 +73,36 @@ def material_plan(quote, result=None):
         for stock in result.get('room_stocks', []):
             if stock['material_id'] == material_id:
                 stock_units[stock['room_id']] += 1
-        legacy_quote_row = room_needs is None and 'room_stocks' not in result
-        if legacy_quote_row:
-            room_ids = [quote.rooms[0].id] if len(quote.rooms) == 1 else [None]
-        else:
-            room_ids = [room.id for room in quote.rooms
-                        if stock_units[room.id] or extra_by_room[room.id] or
-                        (room_needs is not None and room_needs[(room.id, material_id)])]
-        unused = unused_full[material_id] if room_needs is not None else 0
+        room_ids = [room.id for room in quote.rooms
+                    if stock_units[room.id] or extra_by_room[room.id] or
+                    room_needs[(room.id, material_id)]]
+        unused = unused_full[material_id]
         for room_id in room_ids:
-            room = next((entry for entry in quote.rooms if entry.id == room_id), None)
-            extra = extra_by_room[room_id] if room_id is not None else 0
-            calculated_units = (int(calculated.get('calculated_quantity', calculated['new_purchase_units'])) if legacy_quote_row and calculated
-                                else stock_units[room_id] if room_id is not None else 0)
-            units_needed = (room_needs[(room_id, material_id)] if room_needs is not None and room_id is not None
-                            else (procurement_units(quote, calculated, extra, assigned_allocations) if calculated else extra))
+            room = next(entry for entry in quote.rooms if entry.id == room_id)
+            extra = extra_by_room[room_id]
+            calculated_units = stock_units[room_id]
+            units_needed = room_needs[(room_id, material_id)]
             extra_offset = min(extra, unused)
             unused -= extra_offset
             extra_need = max(0, extra - extra_offset)
             allocated = sum(a.quantity for a in rows if a.material_id == material_id and
-                            (room_id is None or assigned_room(quote, a) == room_id))
-            purchased = (purchases[material_id] if room_id is None else
-                         sum(p.quantity for p in quote.purchases if p.material_id == material_id and
-                             assigned_room(quote, p) == room_id))
+                            assigned_room(quote, a) == room_id)
+            purchased = sum(p.quantity for p in quote.purchases if p.material_id == material_id and
+                            assigned_room(quote, p) == room_id)
             row = dict(calculated) if calculated else dict(
                 material_id=material_id, label=product.get('label', material_id),
                 category=product.get('category', 'other'), new_purchase_units=0,
                 cost=0, room_demands=[])
             row.update(room_id=room_id, room_name=room.name if room else None,
-                       legacy_unassigned=room_id is None and len(quote.rooms) > 1,
                        calculated_quantity=calculated_units, extra_quantity=extra,
                        total_quantity=calculated_units + extra,
                        allocated_owned_quantity=allocated, purchased_quantity=purchased,
-                       need_to_purchase_quantity=(units_needed + extra_need if room_needs is not None
-                                                 else max(0, units_needed -
-                                                          (assigned_purchases[(room_id, material_id)] if room_id is not None
-                                                           else sum(assigned_purchases[(r.id, material_id)] for r in quote.rooms)))),
+                       need_to_purchase_quantity=units_needed + extra_need,
                        room_purchase_units=[], extra_need_units=extra_need,
                        unit_price=product.get('price', 0),
                        chargeable_cost=money(calculated_units * product.get('price', 0) +
                                              extra * product.get('price', 0)))
             plan.append(row)
-        if legacy_quote_row and len(quote.rooms) > 1:
-            # Old aggregate results lack room cut data, but an Extra record
-            # with a known room still keeps that ownership independently.
-            for room_id, extra in extra_by_room.items():
-                plan.append(dict(material_id=material_id, label=product.get('label', material_id),
-                    category=product.get('category', 'other'), room_id=room_id,
-                    room_name=next(room.name for room in quote.rooms if room.id == room_id),
-                    calculated_quantity=0, extra_quantity=extra, total_quantity=extra,
-                    allocated_owned_quantity=sum(a.quantity for a in rows
-                        if a.material_id == material_id and assigned_room(quote, a) == room_id),
-                    purchased_quantity=sum(p.quantity for p in quote.purchases
-                        if p.material_id == material_id and assigned_room(quote, p) == room_id),
-                    need_to_purchase_quantity=max(0, extra - sum(p.quantity for p in quote.purchases
-                        if p.material_id == material_id and assigned_room(quote, p) == room_id)),
-                    unit_price=product.get('price', 0),
-                    chargeable_cost=money(extra * product.get('price', 0))))
         for legacy_state in unassigned_states:
             # One legacy row stays one row, remains in the quote total, and is
             # never copied into every room's demand.
@@ -194,9 +157,6 @@ def reaggregate(quote):
 
 
 def refresh_prices(quote):
-    from ..calculations.dado import SUPPORTED_DADO_STYLES
-    if any(i.type.startswith('DADO_') and i.subtype not in SUPPORTED_DADO_STYLES for r in quote.rooms for i in r.items):
-        raise CalculationError('A saved quote contains a dado style coming later. Its snapshot and results are retained. Explicitly resolve that item before refreshing prices.')
     quote.snapshot=current_snapshot()
     for room in quote.rooms:
         for item in room.items: recalculate_item(item,quote.snapshot)

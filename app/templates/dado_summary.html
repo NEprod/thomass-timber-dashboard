@@ -1,7 +1,6 @@
 {% set ds=dado_summary(item.result,catalogue) %}
 {% if ds.rail_count or ds.square_count %}
 <section class="dado-workshop-summary">
-  {% if item.type.startswith('DADO_') and item.subtype not in supported_dado_styles %}<p class="notice warning">Historical saved style — coming later. These are retained saved results. Recalculation and price refresh require you to explicitly resolve this style first.</p>{% endif %}
   <div class="two-column">
     <div class="measurement-panel"><h3>Main dado rail</h3><p><strong>{{ ds.rail_count }} installed pieces</strong> · required {{ ds.rail_required_mm }} mm</p><ul>{% for piece in ds.rail %}<li>{{ piece.role }} — {{ piece.count }} × {{ piece.length_mm }} mm</li>{% endfor %}</ul></div>
     {% if ds.square_count %}<div class="measurement-panel"><h3>Square dado pieces</h3><p><strong>{{ ds.square_count }} total</strong> · Horizontal: {{ ds.horizontal }} · Vertical: {{ ds.vertical }}</p><ul>{% for piece in ds.square %}<li>{{ piece.orientation }} · {{ piece.kind }} — {{ piece.count }} × {{ piece.length_mm }} mm<small>{{ piece.profile }}</small></li>{% endfor %}</ul></div>{% endif %}

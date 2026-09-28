@@ -193,7 +193,7 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
 
 
 def dado_summary(result, catalogue):
-    """Read structured cuts, including older saved results, without recalculation."""
+    """Summarize structured dado cuts without recalculation."""
     from collections import Counter
     rail_counts, square_counts = Counter(), Counter()
     horizontal = vertical = 0

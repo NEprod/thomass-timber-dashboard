@@ -12,7 +12,7 @@ from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
 from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
 from .calculations.packing import number, CalculationError
 from .services.quotes import current_snapshot, recalculate_item, reaggregate, refresh_prices, material_plan
-from .services.inventory import (available_quantity, stock_can_satisfy,
+from .services.inventory import (available_quantity,
                                  stock_description, stock_dimensions, stock_recommendations,
                                  validate_stock_values)
 from .services.room_procurement import assigned_room, compatible, stock_fits_room, stock_fits_quote
@@ -437,7 +437,7 @@ def quote_edit(quote_id):
     plan=material_plan(q)
     recommendations=stock_recommendations(q,plan,stock,
         [allocation for allocation in allocations if assigned_room(q,allocation) is not None])
-    return render_template('quote_edit.html',quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_can_satisfy=stock_can_satisfy,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,today=date.today())
+    return render_template('quote_edit.html',quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,today=date.today())
 
 @web.route('/materials',methods=['GET','POST'])
 @login_required

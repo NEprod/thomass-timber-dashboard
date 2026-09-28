@@ -105,24 +105,3 @@ def test_stair_bottom_uses_dado_fields_and_transition_provisions(stocks):
 def test_unsupported_styles_rejected(stocks,style):
     for kind in ('DADO_STRAIGHT','DADO_STAIR'):
         with pytest.raises(CalculationError,match='coming later'):calculate(kind,style,STAIR,OPTIONS,stocks,3)
-
-
-def test_saved_disabled_style_is_retained(app,signed_in):
-    from test_application import create_quote,add_room,add_item,post_quote
-    from test_calculations import HALF
-    from app.models import db,Quote,WorkItem
-    qid=create_quote(signed_in,app);rid=add_room(signed_in,app,qid,'Existing quote')
-    iid=add_item(signed_in,app,qid,rid,'Old saved item','PANELLING_HALF',HALF)
-    with app.app_context():
-        item=db.session.get(WorkItem,iid);item.type='DADO_STRAIGHT';item.subtype='Dado Double Squares Bottom';db.session.commit()
-        result=deepcopy(item.result);snapshot=deepcopy(db.session.get(Quote,qid).snapshot)
-    response=post_quote(signed_in,app,qid,'edit_item',room_id=rid,item_id=iid,type='DADO_STRAIGHT',subtype='Dado Double Squares Bottom',name='Changed')
-    assert response.status_code==200 and b'kept unchanged' in response.data
-    post_quote(signed_in,app,qid,'refresh_prices')
-    with app.app_context():
-        item=db.session.get(WorkItem,iid)
-        assert item.name=='Old saved item' and item.subtype=='Dado Double Squares Bottom' and item.result==result
-        assert db.session.get(Quote,qid).snapshot==snapshot
-    page=signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
-    assert 'disabled value="Dado Double Squares Bottom" selected' in page
-    assert 'Dado Double Squares Bottom — Coming later' in page

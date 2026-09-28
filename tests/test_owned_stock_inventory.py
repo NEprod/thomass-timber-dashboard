@@ -2,7 +2,8 @@ from datetime import date
 
 from app.models import (db, Customer, Quote, Room, WorkItem, Material,
                         OwnedStock, OwnedStockAllocation)
-from app.services.inventory import stock_can_satisfy, stock_recommendations
+from app.services.inventory import stock_recommendations
+from app.services.room_procurement import stock_fits_room
 from app.services.quotes import current_snapshot, material_plan, reaggregate
 from app.calculations.packing import pack
 from test_application import create_quote, add_room, add_item, post_quote
@@ -179,7 +180,7 @@ def test_sheet_offcut_dimensions_are_respected_without_new_nesting(app, signed_i
                                usable_length_mm=1000, usable_width_mm=1220, quantity=1)
         db.session.add_all([half, too_short]); db.session.commit()
         plan = material_plan(quote)
-        assert not stock_can_satisfy(quote, too_short)
+        assert not stock_fits_room(quote, too_short, quote.rooms[0].id)
         recommendation = stock_recommendations(quote, plan, [half], [])
         assert plan[0]['need_to_purchase_quantity'] == 1
         assert recommendation[material_id]['stock'] == {}

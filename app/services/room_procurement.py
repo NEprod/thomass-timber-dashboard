@@ -6,7 +6,7 @@ from ..calculations.room_stock import _dado_stocks, _dado_use
 from ..calculations.room_stock import _coving_stocks
 from ..calculations.materials import kerf_for
 from ..models import db, OwnedStockAllocation
-from .inventory import stock_dimensions, stock_can_satisfy
+from .inventory import stock_dimensions
 
 
 def assigned_room(quote, record):
@@ -37,10 +37,8 @@ def stock_fits_room(quote, stock, room_id, extra_quantity=0):
     product = catalogue.get(stock.material_id)
     if product is None:
         return False
-    if 'room_stocks' not in quote.result and len(quote.rooms) == 1:
-        return stock_can_satisfy(quote, stock, extra_quantity)
     length, width = stock_dimensions(stock, product)
-    for planned in quote.result.get('room_stocks', []):
+    for planned in quote.result['room_stocks']:
         if planned['room_id'] != room_id or not compatible(
                 catalogue, stock.material_id, planned['material_id']):
             continue
@@ -116,9 +114,7 @@ def procurement_plan(quote, result=None, allocations=None):
 
     Normal customer charging is deliberately absent from this calculation.
     """
-    result = result or quote.result or {}
-    if 'room_stocks' not in result:
-        return None
+    result = result or quote.result
     catalogue = quote.snapshot['catalogue']
     pricing = quote.snapshot['pricing']
     demands = defaultdict(list)

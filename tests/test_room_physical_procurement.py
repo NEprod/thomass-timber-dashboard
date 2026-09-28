@@ -1,6 +1,5 @@
 """Existing physical pieces reconcile with room cuts without changing customer charges."""
 from datetime import date
-from copy import deepcopy
 
 from app.models import (db, Customer, Quote, Room, WorkItem, JobPurchase,
                         OwnedStock, OwnedStockAllocation)
@@ -69,12 +68,6 @@ def test_single_room_legacy_purchases_and_reservations_reconcile_physical_pieces
 def test_multi_room_legacy_stock_stays_unassigned_until_user_assigns_it(app, signed_in):
     with app.app_context():
         quote = quote_with_dado(app, [[1200], [900]])
-        previous_result = deepcopy(quote.result)
-        previous_result.pop('room_stocks')
-        for row in previous_result['materials']:
-            row.pop('room_demands', None)
-        quote.result = previous_result
-        db.session.commit()
         purchase = old_purchase(quote, 1)
         allocation = old_reservation(quote, 1)
         quote_id, purchase_id, allocation_id = quote.id, purchase.id, allocation.id
