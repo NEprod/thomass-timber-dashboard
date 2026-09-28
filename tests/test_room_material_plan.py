@@ -43,7 +43,7 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     page = signed_in.get(f'/quotes/{quote_id}').get_data(as_text=True)
     assert 'Living room' in page and 'Hall &amp; stairs' in page
     assert 'material-plan-row' in page and 'Reserved pieces</th>' not in page
-    assert 'class="material-table"' in page
+    assert 'class="material-table room-material-table"' in page
     assert '<tr class="material-stock-detail"><td colspan="9">' in page
     assert ('<th scope="col">Material</th><th scope="col">Calculated</th>'
             '<th scope="col">Extra</th><th scope="col">Total</th>'
@@ -54,6 +54,15 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     assert 'aria-label="Pieces to purchase for ' in page
     assert 'type="submit" form="purchase-' in page
     assert '<label>Pieces<input name="quantity"' not in page
+    assert 'class="material-table quote-material-table"' in page
+    assert ('<th scope="col">Material</th><th scope="col">Required</th>'
+            '<th scope="col">On hand</th><th scope="col">Purchased</th>'
+            '<th scope="col">To purchase</th><th scope="col">Charge</th>'
+            '<th scope="col">Tubes</th><th scope="col">Action</th>') in page
+    assert 'data-label="Tubes"><form id="quote-purchase-' in page
+    assert 'aria-label="Tubes to purchase"' in page
+    assert 'type="submit" form="quote-purchase-' in page
+    assert '<label>Tubes<input name="quantity"' not in page
     assert 'Save Extra' not in page and 'Mark purchased' in page
     assert 'Owned stock & reservations' in page
     assert 'Quote-level material' in page
