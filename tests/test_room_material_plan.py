@@ -50,6 +50,9 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     assert 'Owned stock & reservations' in page
     assert 'Quote-level material' in page
     assert 'Quote consumables' in page and 'Additional charges' in page and 'Customer payments' in page
+    assert 'quote-total-panel' in page
+    assert 'Mastic ·' in page and 'Cut charge' in page and 'Delivery' in page
+    assert 'Saved price snapshot' in page and 'Edit saved charge or payment' in page
     assert '<select name="room_id"' not in page
 
     assert post_quote(signed_in, app, quote_id, 'set_extra_material',
