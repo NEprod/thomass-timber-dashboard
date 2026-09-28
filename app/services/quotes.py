@@ -1,4 +1,5 @@
 from copy import deepcopy
+from collections import Counter, defaultdict
 from decimal import Decimal, ROUND_CEILING
 from ..models import (db, Material, PricingConfig, Quote, JobMaterialState,
                       JobPurchase, OwnedStockAllocation, now)
@@ -36,57 +37,119 @@ def material_plan(quote, result=None):
     changes what the workshop still needs to buy, never the customer price.
     """
     result = result or quote.result or {}
-    state = {row.material_id: row for row in quote.material_states}
-    purchases = {}
-    assigned_purchases = {}
+    states = defaultdict(list)
+    for state in quote.material_states:
+        states[state.material_id].append(state)
+    purchases = defaultdict(int)
+    assigned_purchases = defaultdict(int)
     for row in quote.purchases:
-        purchases[row.material_id] = purchases.get(row.material_id, 0) + row.quantity
-        if assigned_room(quote, row) is not None:
-            assigned_purchases[row.material_id] = assigned_purchases.get(row.material_id, 0) + row.quantity
+        purchases[row.material_id] += row.quantity
+        room_id = assigned_room(quote, row)
+        if room_id is not None:
+            assigned_purchases[(room_id, row.material_id)] += row.quantity
     rows = db.session.scalars(db.select(OwnedStockAllocation).where(OwnedStockAllocation.quote_id == quote.id)).all()
+    assigned_allocations = [row for row in rows if assigned_room(quote, row) is not None]
     physical = procurement_plan(quote, result)
     room_needs, unused_full = physical if physical is not None else (None, None)
-    normal = {row['material_id']: row for row in result.get('materials', [])
-              if not row.get('is_calculated_consumable')}
+    persisted_material_rows = [row for row in result.get('materials', [])
+                               if not row.get('is_calculated_consumable')]
+    normal = {}
+    for row in persisted_material_rows:
+        material_id = row['material_id']
+        if material_id not in normal:
+            normal[material_id] = dict(row)
+        elif row.get('room_id') is not None:
+            normal[material_id]['calculated_quantity'] = (
+                normal[material_id].get('calculated_quantity', 0) + row.get('calculated_quantity', 0))
+    for material_id, row in normal.items():
+        if row.get('room_id') is not None:
+            row['new_purchase_units'] = row.get('calculated_quantity', row.get('new_purchase_units', 0))
     needed_ids = {material_id for _, material_id in room_needs} if room_needs is not None else set()
-    material_ids = list(normal) + sorted((needed_ids | set(state)) - set(normal))
+    material_ids = list(normal) + sorted((needed_ids | set(states)) - set(normal))
     plan = []
     for material_id in material_ids:
         calculated = normal.get(material_id)
-        # Mastic is calculated from installed work, rather than a catalogue
-        # stock product. It is appended below so it follows the same
-        # outstanding-procurement display path without entering stock packing.
-        extra = state.get(material_id).extra_quantity if material_id in state else 0
-        calculated_units = int(calculated['new_purchase_units']) if calculated else 0
-        total = calculated_units + extra
-        material_allocations = [row for row in rows if row.material_id == material_id
-                                and assigned_room(quote, row) is not None]
-        allocated = sum(row.quantity for row in material_allocations)
-        purchased = purchases.get(material_id, 0)
         product = quote.snapshot['catalogue'].get(material_id, {})
-        if room_needs is None:
-            gross_need = (procurement_units(quote, calculated, extra, material_allocations)
-                          if calculated else max(0, extra - allocated))
-            need = max(0, gross_need - assigned_purchases.get(material_id, 0))
-            room_purchase_units = []
-            extra_need = 0
+        extra_by_room = defaultdict(int)
+        unassigned_states = []
+        for state in states[material_id]:
+            room_id = assigned_room(quote, state)
+            if room_id is None:
+                unassigned_states.append(state)
+            else:
+                extra_by_room[room_id] += state.extra_quantity
+        stock_units = Counter()
+        for stock in result.get('room_stocks', []):
+            if stock['material_id'] == material_id:
+                stock_units[stock['room_id']] += 1
+        legacy_quote_row = room_needs is None and 'room_stocks' not in result
+        if legacy_quote_row:
+            room_ids = [quote.rooms[0].id] if len(quote.rooms) == 1 else [None]
         else:
-            room_purchase_units = [dict(room_id=room.id, room_name=room.name,
-                                        units=room_needs[(room.id, material_id)])
-                                   for room in quote.rooms if room_needs[(room.id, material_id)]]
-            extra_need = max(0, extra - unused_full[material_id])
-            need = sum(room['units'] for room in room_purchase_units) + extra_need
-        row = dict(calculated) if calculated else dict(
-            material_id=material_id, label=product['label'], category=product['category'],
-            new_purchase_units=0, cost=0, room_demands=[])
-        row.update(calculated_quantity=calculated_units, extra_quantity=extra,
-                   total_quantity=total, allocated_owned_quantity=allocated,
-                   purchased_quantity=purchased, need_to_purchase_quantity=need,
-                   room_purchase_units=room_purchase_units, extra_need_units=extra_need,
-                   unit_price=product.get('price', 0),
-                   chargeable_cost=money((calculated['cost'] if calculated else 0) +
-                                         extra * product.get('price', 0)))
-        plan.append(row)
+            room_ids = [room.id for room in quote.rooms
+                        if stock_units[room.id] or extra_by_room[room.id] or
+                        (room_needs is not None and room_needs[(room.id, material_id)])]
+        unused = unused_full[material_id] if room_needs is not None else 0
+        for room_id in room_ids:
+            room = next((entry for entry in quote.rooms if entry.id == room_id), None)
+            extra = extra_by_room[room_id] if room_id is not None else 0
+            calculated_units = (int(calculated.get('calculated_quantity', calculated['new_purchase_units'])) if legacy_quote_row and calculated
+                                else stock_units[room_id] if room_id is not None else 0)
+            units_needed = (room_needs[(room_id, material_id)] if room_needs is not None and room_id is not None
+                            else (procurement_units(quote, calculated, extra, assigned_allocations) if calculated else extra))
+            extra_offset = min(extra, unused)
+            unused -= extra_offset
+            extra_need = max(0, extra - extra_offset)
+            allocated = sum(a.quantity for a in rows if a.material_id == material_id and
+                            (room_id is None or assigned_room(quote, a) == room_id))
+            purchased = (purchases[material_id] if room_id is None else
+                         sum(p.quantity for p in quote.purchases if p.material_id == material_id and
+                             assigned_room(quote, p) == room_id))
+            row = dict(calculated) if calculated else dict(
+                material_id=material_id, label=product.get('label', material_id),
+                category=product.get('category', 'other'), new_purchase_units=0,
+                cost=0, room_demands=[])
+            row.update(room_id=room_id, room_name=room.name if room else None,
+                       legacy_unassigned=room_id is None and len(quote.rooms) > 1,
+                       calculated_quantity=calculated_units, extra_quantity=extra,
+                       total_quantity=calculated_units + extra,
+                       allocated_owned_quantity=allocated, purchased_quantity=purchased,
+                       need_to_purchase_quantity=(units_needed + extra_need if room_needs is not None
+                                                 else max(0, units_needed -
+                                                          (assigned_purchases[(room_id, material_id)] if room_id is not None
+                                                           else sum(assigned_purchases[(r.id, material_id)] for r in quote.rooms)))),
+                       room_purchase_units=[], extra_need_units=extra_need,
+                       unit_price=product.get('price', 0),
+                       chargeable_cost=money(calculated_units * product.get('price', 0) +
+                                             extra * product.get('price', 0)))
+            plan.append(row)
+        if legacy_quote_row and len(quote.rooms) > 1:
+            # Old aggregate results lack room cut data, but an Extra record
+            # with a known room still keeps that ownership independently.
+            for room_id, extra in extra_by_room.items():
+                plan.append(dict(material_id=material_id, label=product.get('label', material_id),
+                    category=product.get('category', 'other'), room_id=room_id,
+                    room_name=next(room.name for room in quote.rooms if room.id == room_id),
+                    calculated_quantity=0, extra_quantity=extra, total_quantity=extra,
+                    allocated_owned_quantity=sum(a.quantity for a in rows
+                        if a.material_id == material_id and assigned_room(quote, a) == room_id),
+                    purchased_quantity=sum(p.quantity for p in quote.purchases
+                        if p.material_id == material_id and assigned_room(quote, p) == room_id),
+                    need_to_purchase_quantity=max(0, extra - sum(p.quantity for p in quote.purchases
+                        if p.material_id == material_id and assigned_room(quote, p) == room_id)),
+                    unit_price=product.get('price', 0),
+                    chargeable_cost=money(extra * product.get('price', 0))))
+        for legacy_state in unassigned_states:
+            # One legacy row stays one row, remains in the quote total, and is
+            # never copied into every room's demand.
+            plan.append(dict(material_id=material_id, label=product.get('label', material_id),
+                category=product.get('category', 'other'), room_id=None,
+                room_name='Unassigned legacy Extra Material', legacy_unassigned=True,
+                calculated_quantity=0, extra_quantity=legacy_state.extra_quantity,
+                total_quantity=legacy_state.extra_quantity, allocated_owned_quantity=0,
+                purchased_quantity=0, need_to_purchase_quantity=0, unit_price=product.get('price', 0),
+                chargeable_cost=money(legacy_state.extra_quantity * product.get('price', 0)),
+                is_legacy_extra=True, legacy_state_id=legacy_state.id))
     mastic_units = int(result.get('mastic_units', 0) or 0)
     if mastic_units:
         mastic_cost = money(result.get('mastic_cost', 0))
@@ -96,7 +159,8 @@ def material_plan(quote, result=None):
                          total_quantity=mastic_units, allocated_owned_quantity=0,
                          purchased_quantity=0, need_to_purchase_quantity=mastic_units,
                          unit_price=money(mastic_cost / mastic_units),
-                         chargeable_cost=mastic_cost))
+                         chargeable_cost=mastic_cost, room_id=None, room_name=None,
+                         is_quote_level=True))
     return plan
 
 

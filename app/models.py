@@ -134,13 +134,19 @@ class Payment(db.Model):
 
 
 class JobMaterialState(db.Model):
-    """Quote-specific additions to calculated material demand."""
+    """Room-specific additions to calculated material demand.
+
+    A null room_id is retained for legacy quote-level additions whose room
+    cannot be inferred safely.
+    """
     id = db.Column(db.Integer, primary_key=True)
     quote_id = db.Column(db.Integer, db.ForeignKey('quote.id'), nullable=False)
     material_id = db.Column(db.String(100), nullable=False)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id'))
     extra_quantity = db.Column(db.Integer, nullable=False, default=0)
     quote = db.relationship('Quote', back_populates='material_states')
-    __table_args__ = (db.UniqueConstraint('quote_id', 'material_id', name='uq_job_material_state'),)
+    room = db.relationship('Room')
+    __table_args__ = (db.UniqueConstraint('quote_id', 'material_id', 'room_id', name='uq_job_material_state_room'),)
 
 
 class JobPurchase(db.Model):

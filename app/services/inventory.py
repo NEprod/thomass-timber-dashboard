@@ -212,8 +212,11 @@ def _room_stock_recommendations(quote, plan, stocks, allocations):
 
     def outstanding(simulated):
         needs, unused = procurement_plan(quote, allocations=simulated)
-        extras = sum(max(0, row.extra_quantity - unused[row.material_id])
-                     for row in quote.material_states)
+        extra_by_material = Counter()
+        for row in quote.material_states:
+            extra_by_material[row.material_id] += row.extra_quantity
+        extras = sum(max(0, quantity - unused[material_id])
+                     for material_id, quantity in extra_by_material.items())
         return sum(needs.values()) + extras
 
     suggestions = {}

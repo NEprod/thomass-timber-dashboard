@@ -166,10 +166,19 @@ def test_existing_database_upgrade_preserves_prices(tmp_path):
         upgrade(revision='a29d1b65da4b')
         db.session.execute(text("INSERT INTO material (id,category,label,profile,length_mm,width_mm,thickness_mm,price,active,preferred_stock_mm) VALUES ('custom-id','dado','Edited label','45mm',3000,45,20,99,1,3000)"))
         db.session.commit()
+        upgrade(revision='e14_room_physical_stock')
+        db.session.execute(text("INSERT INTO customer (id,name) VALUES (10,'Migration customer')"))
+        for quote_id in (10, 20):
+            db.session.execute(text("INSERT INTO quote (id,customer_id,title,status,created_at,updated_at,full_days,extra_hours,notes,snapshot,result,revision) VALUES (:id,10,'Legacy','Draft','2026-01-01','2026-01-01',0,0,'','{}','{}',1)"), {'id': quote_id})
+        db.session.execute(text("INSERT INTO room (id,quote_id,name,position) VALUES (10,10,'Single room',0),(20,20,'Room A',0),(21,20,'Room B',1)"))
+        db.session.execute(text("INSERT INTO job_material_state (id,quote_id,material_id,extra_quantity) VALUES (10,10,'custom-id',2),(20,20,'custom-id',3)"))
+        db.session.commit()
         upgrade()
         row=db.session.get(Material,'custom-id')
         assert row.price==99 and row.label=='Edited label'
         assert row.uses==['continuous_dado','stair_dado','square_dado']
+        states=db.session.execute(text('SELECT id, room_id, extra_quantity FROM job_material_state ORDER BY id')).all()
+        assert states==[(10,10,2),(20,None,3)]
 
 
 def test_stair_segment_splits_keep_only_external_mitres(catalogue):

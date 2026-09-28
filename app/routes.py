@@ -266,21 +266,33 @@ def quote_edit(quote_id):
                 material_id=field('material_id')
                 if not any(row['material_id']==material_id and not row.get('is_calculated_consumable') for row in q.result.get('materials',[])):
                     raise CalculationError('Extra material must use a material already calculated for this quote.')
-                state=next((row for row in q.material_states if row.material_id==material_id),None)
+                room=quote_room(q)
+                state=next((row for row in q.material_states if row.material_id==material_id
+                            and assigned_room(q,row)==room.id),None)
                 quantity=whole(request.form.get('extra_quantity'),'Extra quantity')
                 if state is None:
-                    state=JobMaterialState(material_id=material_id,extra_quantity=quantity);q.material_states.append(state)
+                    state=JobMaterialState(material_id=material_id,room_id=room.id,
+                                           extra_quantity=quantity);q.material_states.append(state)
                 else:state.extra_quantity=quantity
+            elif action=='assign_extra_material':
+                room=quote_room(q)
+                state=db.session.get(JobMaterialState,request.form.get('state_id',type=int))
+                if not state or state.quote_id!=q.id or state.room_id is not None:
+                    raise CalculationError('Choose an unassigned legacy Extra Material record.')
+                existing=next((row for row in q.material_states if row.id!=state.id
+                               and row.material_id==state.material_id and row.room_id==room.id),None)
+                if existing:
+                    existing.extra_quantity+=state.extra_quantity
+                    q.material_states.remove(state)
+                else:
+                    state.room_id=room.id
             elif action=='mark_material_purchased':
                 material_id=field('material_id')
-                plan=next((row for row in material_plan(q) if row['material_id']==material_id),None)
-                if not plan or plan.get('is_calculated_consumable') or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
                 room=quote_room(q)
+                plan=next((row for row in material_plan(q) if row['material_id']==material_id
+                           and row.get('room_id')==room.id),None)
+                if not plan or plan.get('is_calculated_consumable') or not plan['need_to_purchase_quantity']:raise CalculationError('There is no outstanding material to mark as purchased.')
                 quantity=whole(request.form.get('quantity',1),'Purchased quantity',allow_zero=False)
-                room_need=next((row['units'] for row in plan.get('room_purchase_units',[])
-                                if row['room_id']==room.id),0)
-                if 'room_stocks' in q.result and quantity>room_need+plan.get('extra_need_units',0):
-                    raise CalculationError('Purchased quantity exceeds the material needed for this room.')
                 if quantity>plan['need_to_purchase_quantity']:raise CalculationError('Purchased quantity cannot exceed the material still needed.')
                 product=q.snapshot['catalogue'][material_id]
                 q.purchases.append(JobPurchase(material_id=material_id,room_id=room.id,
@@ -292,7 +304,8 @@ def quote_edit(quote_id):
                 material_id=field('material_id')
                 room=quote_room(q)
                 stock=db.session.get(OwnedStock,request.form.get('owned_stock_id',type=int))
-                plan=next((row for row in material_plan(q) if row['material_id']==material_id),None)
+                plan=next((row for row in material_plan(q) if row['material_id']==material_id
+                           and row.get('room_id')==room.id),None)
                 quantity=whole(request.form.get('quantity'),'Allocation quantity',allow_zero=False)
                 if not stock or not stock.active or not compatible(q.snapshot['catalogue'],stock.material_id,material_id):raise CalculationError('Choose compatible active owned stock.')
                 if not plan:raise CalculationError('Choose owned stock for a calculated quote material.')
@@ -379,11 +392,16 @@ def quote_edit(quote_id):
                 room=next((r for r in q.rooms if r.id==request.form.get('room_id',type=int)),None)
                 if not room:abort(404)
                 if action=='delete_room':
+                    room_extras=[state for state in q.material_states if state.room_id==room.id]
+                    if any(state.extra_quantity for state in room_extras):
+                        raise CalculationError('Remove this room’s Extra Material before deleting the room.')
                     allocations=db.session.scalars(db.select(OwnedStockAllocation).where(
                         OwnedStockAllocation.quote_id==q.id,
                         OwnedStockAllocation.room_id==room.id)).all()
                     if allocations or any(p.room_id==room.id for p in q.purchases):
                         raise CalculationError('Assign this room’s purchases and reservations to another room before removing it.')
+                    for state in room_extras:
+                        q.material_states.remove(state)
                     q.rooms.remove(room)
                 elif action=='edit_room':
                     room.name=field('name',True);room.notes=field('notes',limit=5000)
@@ -410,7 +428,7 @@ def quote_edit(quote_id):
                         recalculate_item(item,q.snapshot)
             else:abort(400,description='Unknown quote action.')
             reaggregate(q);db.session.commit();flash('Quote saved. Calculations and totals updated.','success')
-            anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ('#quote-financials' if action in ('set_extra_material','mark_material_purchased','allocate_owned_stock','remove_owned_allocation','assign_physical_stock','add_consumable','edit_consumable','delete_consumable','add_charge','edit_charge','delete_charge','add_payment','mark_deposit_paid','edit_payment','delete_payment','record_leftover') else '')
+            anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ('#quote-financials' if action in ('set_extra_material','assign_extra_material','mark_material_purchased','allocate_owned_stock','remove_owned_allocation','assign_physical_stock','add_consumable','edit_consumable','delete_consumable','add_charge','edit_charge','delete_charge','add_payment','mark_deposit_paid','edit_payment','delete_payment','record_leftover') else '')
             return redirect(request.path+anchor)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
         except StaleDataError:db.session.rollback();abort(409,description='This quote changed in another session. Reload before editing.')

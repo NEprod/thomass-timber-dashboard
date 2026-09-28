@@ -1,7 +1,7 @@
 {% if quote.result.get('room_stocks') %}
 <details class="secondary-details"><summary>Room cut plan · purchased stock, wall labels & remainders</summary>
 {% for room_id, stocks in quote.result.room_stocks|groupby('room_id') %}
-<h4>{{ stocks[0].room_name }}</h4>
+<h5>{{ stocks[0].room_name }}</h5>
 {% for stock in stocks %}
 <div class="strip"><div class="strip-heading"><strong>{{ catalogue[stock.material_id].label }}</strong><span>{{ stock.stock_length_mm|int }} mm{% if stock.category=='mdf' %} × {{ stock.stock_width_mm|int }} mm sheet{% else %} stock{% endif %} · used {{ stock.used_mm|round(2) }} mm · kerf {{ stock.kerf_loss_mm|round(2) }} mm · remainder {{ stock.remainder_mm|round(2) }} mm</span></div>
 <ul>{% for cut in stock.cuts %}
