@@ -44,6 +44,7 @@ def test_room_grouped_extra_and_purchase_actions_use_known_room(app, signed_in):
     assert 'Living room' in page and 'Hall &amp; stairs' in page
     assert 'material-plan-row' in page and 'Reserved pieces</th>' not in page
     assert 'class="material-table"' in page
+    assert '<tr class="material-stock-detail"><td colspan="8">' in page
     for heading in ('Calculated', 'Extra', 'Total', 'Reserved', 'Material to purchase', 'Charge', 'Actions'):
         assert f'<th scope="col">{heading}</th>' in page
     assert 'Save Extra' not in page and 'Mark purchased' in page

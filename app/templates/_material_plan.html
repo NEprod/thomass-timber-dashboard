@@ -22,13 +22,14 @@
       <td data-label="Charge">{{ m.chargeable_cost|gbp }}</td>
       <td data-label="Actions"><div class="material-row-actions">
         {% if m.need_to_purchase_quantity %}<form method="post" class="material-action-form">{{ token(quote,'mark_material_purchased') }}<input type="hidden" name="material_id" value="{{ m.material_id }}"><input type="hidden" name="room_id" value="{{ room.id }}"><input type="hidden" name="purchased_at" value="{{ date.today().isoformat() }}"><label>Pieces<input name="quantity" type="number" min="1" max="{{ m.need_to_purchase_quantity }}" value="1" required></label><button class="quiet">Mark purchased</button></form>{% endif %}
-      <details class="room-stock-options"><summary>Owned stock & reservations</summary>
+      </div></td>
+    </tr>
+    <tr class="material-stock-detail"><td colspan="8"><details class="room-stock-options"><summary>Owned stock & reservations · {{ m.label }}</summary>
         {% if recommendations.get(m.material_id) %}<p class="notice">{{ recommendations[m.material_id].text }}</p>{% endif %}
         {% for s in owned_stock if compatible(catalogue,s.material_id,m.material_id) %}<div class="stock-option"><div><strong>{{ stock_description(s,catalogue[s.material_id]) }}</strong><small>{{ stock_state(s) }}{% if s.note %} · {{ s.note }}{% endif %}{% if stock_available(s) and not stock_fits_room(quote,s,room.id,m.extra_quantity) %} · No current calculated cut fits in this room{% endif %}</small></div>
           {% if stock_available(s) and stock_fits_room(quote,s,room.id,m.extra_quantity) and quote.status!='Complete' %}<form method="post" class="material-action-form">{{ token(quote,'allocate_owned_stock') }}<input type="hidden" name="material_id" value="{{ m.material_id }}"><input type="hidden" name="room_id" value="{{ room.id }}"><input type="hidden" name="owned_stock_id" value="{{ s.id }}"><label>Pieces<input name="quantity" type="number" min="1" max="{{ stock_available(s) }}" value="1" required></label><button>Reserve for {{ room.name }}</button></form>{% endif %}
         </div>{% else %}<p class="hint">No compatible owned stock recorded.</p>{% endfor %}
-      </details></div></td>
-    </tr>{% endfor %}
+      </details></td></tr>{% endfor %}
     </tbody></table></div>
   </section>{% endif %}
 {% endfor %}
