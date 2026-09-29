@@ -111,26 +111,32 @@ def _coving_stocks(cuts, catalogue, kerf, source_ids):
     plans = []
     orders = [sorted(cuts, key=lambda c: (-c['length_mm'], c['id'])),
               sorted(cuts, key=lambda c: (c.get('work_item_id') or '', -c['length_mm'], c['id']))]
-    for order in orders:
-        bins = []
-        for cut in order:
-            suitable = [b for b in bins if b['used_mm'] + kerf + cut['length_mm'] <= b['product']['length_mm'] + 1e-7]
-            suitable.sort(key=lambda b: (not any(c.get('work_item_id') == cut.get('work_item_id') for c in b['cuts']),
-                                         b['product']['length_mm'] - b['used_mm']))
-            if suitable:
-                bin_ = suitable[0]
-                bin_['cuts'].append(cut)
-                bin_['used_mm'] = round(bin_['used_mm'] + kerf + cut['length_mm'], 6)
-            else:
-                eligible = [p for p in products if p['length_mm'] >= cut['length_mm']]
-                if not eligible:
-                    raise CalculationError(f"{cut.get('label', 'Coving run')}: no continuous Coving stock fits this cut.")
-                product = min(eligible, key=lambda p: (p['length_mm'], p['price'], p['id']))
-                bins.append({'product': product, 'cuts': [cut], 'used_mm': cut['length_mm']})
-        score = (sum(b['product']['length_mm'] for b in bins),
-                 money(sum(b['product']['price'] for b in bins)), len(bins),
-                 _wall_spread(bins), tuple(b['product']['id'] for b in bins))
-        plans.append((score, bins))
+    for base in products:
+        for order in orders:
+            bins = []
+            for cut in order:
+                suitable = [b for b in bins if b['used_mm'] + kerf + cut['length_mm'] <= b['product']['length_mm'] + 1e-7]
+                suitable.sort(key=lambda b: (not any(c.get('work_item_id') == cut.get('work_item_id') for c in b['cuts']),
+                                             b['product']['length_mm'] - b['used_mm']))
+                if suitable:
+                    bin_ = suitable[0]
+                    bin_['cuts'].append(cut)
+                    bin_['used_mm'] = round(bin_['used_mm'] + kerf + cut['length_mm'], 6)
+                else:
+                    eligible = [p for p in products if p['length_mm'] >= cut['length_mm']]
+                    if not eligible:
+                        raise CalculationError(f"{cut.get('label', 'Coving run')}: no continuous Coving stock fits this cut.")
+                    product = base if base in eligible else eligible[0]
+                    bins.append({'product': product, 'cuts': [cut], 'used_mm': cut['length_mm']})
+            # A longer candidate may save a whole stock piece; shrink each resulting bin
+            # back to the shortest length that still holds its kerf-aware cuts.
+            for bin_ in bins:
+                bin_['product'] = next(p for p in products if p['length_mm'] + 1e-7 >= bin_['used_mm'])
+            score = (len(bins), sum(b['product']['length_mm'] for b in bins),
+                     _wall_spread(bins), money(sum(b['product']['price'] for b in bins)),
+                     tuple(b['product']['id'] for b in bins),
+                     tuple(tuple(c['id'] for c in b['cuts']) for b in bins))
+            plans.append((score, bins))
     bins = min(plans, key=lambda p: p[0])[1]
     stocks = []
     for bin_ in bins:

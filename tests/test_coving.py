@@ -51,9 +51,33 @@ def test_coving_room_packing_kerf_stock_price_and_labels(catalogue, seed_data):
     assert [s['material_id'] for s in fits['room_stocks'] if s['category']=='coving']==['coving-127x127-3m']
     pricing['coving_kerf']=11
     too_long=aggregate([i['result'] for i in edge],catalogue,pricing,rooms=[_room(2,edge)])
-    assert [s['material_id'] for s in too_long['room_stocks'] if s['category']=='coving']==['coving-127x127-3m','coving-127x127-3m']
-    assert too_long['stock_material_cost']==20
+    assert [s['material_id'] for s in too_long['room_stocks'] if s['category']=='coving']==['coving-127x127-3.6m']
+    assert too_long['stock_material_cost']==12
     assert calculate('DADO_STRAIGHT','Dado',{'wall_length':1000},{'dado_rail_id':'dado-45mm-3m'},catalogue,pricing['kerf'])['groups']
+
+
+def test_coving_room_chooses_fewer_lengths_before_shorter_stock(catalogue, seed_data):
+    pricing=deepcopy(seed_data['pricing'])
+    items=[_coving_item(catalogue,1,1800),_coving_item(catalogue,2,1700)]
+    result=aggregate([i['result'] for i in items],catalogue,pricing,rooms=[_room(1,items)])
+    stocks=[s for s in result['room_stocks'] if s['category']=='coving']
+    assert len(stocks)==1
+    assert stocks[0]['stock_length_mm']==3600
+    assert stocks[0]['used_mm']==3510
+    assert stocks[0]['remainder_mm']==90
+    assert {c['wall_name'] for c in stocks[0]['cuts']}=={'Wall 1','Wall 2'}
+    assert result['stock_material_cost']==12
+
+    separate=aggregate([i['result'] for i in items],catalogue,pricing,
+                       rooms=[_room(1,[items[0]]),_room(2,[items[1]])])
+    assert sorted(s['stock_length_mm'] for s in separate['room_stocks'] if s['category']=='coving')==[3000,3000]
+
+    edge=[_coving_item(catalogue,3,1800),_coving_item(catalogue,4,1790)]
+    fits=aggregate([i['result'] for i in edge],catalogue,pricing,rooms=[_room(3,edge)])
+    assert [s['stock_length_mm'] for s in fits['room_stocks'] if s['category']=='coving']==[3600]
+    pricing['coving_kerf']=11
+    split=aggregate([i['result'] for i in edge],catalogue,pricing,rooms=[_room(3,edge)])
+    assert sorted(s['stock_length_mm'] for s in split['room_stocks'] if s['category']=='coving')==[3000,3000]
 
 
 def test_coving_long_run_is_one_3600_piece_and_overlength_rejected(catalogue, seed_data):
