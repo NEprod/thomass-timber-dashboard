@@ -1,0 +1,44 @@
+<div class="result-metrics">
+<div>
+<small>Preset</small>
+<strong>{{ cabinet_presets[g.preset] }}</strong>
+</div>
+<div>
+<small>Unit</small>
+<strong>{{ g.unit_width }} × {{ g.unit_height }} × {{ g.unit_depth }} mm</strong>
+</div>
+<div>
+<small>Clear bay width</small>
+<strong>{{ g.bay_width }} mm</strong>
+</div>
+<div>
+<small>Shelf depth</small>
+<strong>{{ g.shelf_depth }} mm</strong>
+</div>{% if g.back_position %}<div>
+<small>Back front / rear from carcass rear</small>
+<strong>{{ g.back_position.front_face_from_rear_mm }} / {{ g.back_position.rear_face_from_rear_mm }} mm</strong>
+</div>{% endif %}</div>
+<p class="hint">Workshop {{ g.workshop_hours }} hours · installation {{ g.installation_days }} days · labour {{ item.pricing_result.labour_cost|gbp }}.</p>
+<details class="cut-details" open>
+<summary>Cabinet finished parts and sheet cut blanks</summary>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Quantity</th>
+<th>Finished · mm</th>
+<th>Sheet blank · mm</th>
+<th>Material</th>
+</tr>
+</thead>
+<tbody>{% for part in item.result.sheet_parts %}<tr>
+<td>{{ part.label }}</td>
+<td>{{ part.quantity }}</td>
+<td>{% if part.component == 'door' %}{{ part.finished_width_mm }} × {{ part.finished_length_mm }}{% else %}{{ part.finished_length_mm }} × {{ part.finished_width_mm }}{% endif %}</td>
+<td>{% if part.component == 'door' %}{{ part.cut_width_mm }} × {{ part.cut_length_mm }}{% else %}{{ part.cut_length_mm }} × {{ part.cut_width_mm }}{% endif %}</td>
+<td>{{ catalogue[part.material_id].label }}</td>
+</tr>{% endfor %}</tbody>
+</table>
+</div>
+</details>

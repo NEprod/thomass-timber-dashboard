@@ -15,6 +15,15 @@ def current_snapshot():
 
 def recalculate_item(item, snapshot):
     try:
+        if item.type == 'CABINET':
+            item.result = calculate(item.type, item.subtype, item.inputs, item.options,
+                snapshot['catalogue'], snapshot['pricing']['kerf'], item.id,
+                pricing=snapshot['pricing'], room_id=item.room_id)
+            geometry = item.result['geometry']
+            item.pricing_result = {'labour_cost': money(
+                geometry['workshop_hours'] * snapshot['pricing']['hourly_rate'] +
+                geometry['installation_days'] * snapshot['pricing']['day_rate'])}
+            return
         item.result=calculate(item.type,item.subtype,item.inputs,item.options,snapshot['catalogue'],snapshot['pricing']['kerf'],item.id,snapshot['pricing'].get('coving_kerf',10))
         groups=item.result['groups']
         slat=sum(sum(c['length_mm'] for c in g['cuts']) for k,g in groups.items() if snapshot['catalogue'][g['material_id']]['category']=='mdf' and k!='ledge')/1000

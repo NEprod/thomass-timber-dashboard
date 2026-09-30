@@ -27,6 +27,7 @@ for (const form of document.querySelectorAll('.item-form')) {
   function update() {
     const dado = type.value.startsWith('DADO_');
     const coving = type.value === 'COVING';
+    const cabinet = type.value === 'CABINET';
     const stair = type.value === 'PANELLING_STAIR_HALF' || type.value === 'DADO_STAIR';
     for (const option of finish.options) {
       option.disabled = option.dataset.family !== (dado ? 'dado' : 'panelling') ||
@@ -35,25 +36,35 @@ for (const form of document.querySelectorAll('.item-form')) {
     }
     if (finish.selectedOptions[0]?.dataset.family !== (dado ? 'dado' : 'panelling') || (type.value === 'PANELLING_FULL' && finish.value.includes('ledge')) || coving) finish.value = dado ? 'Dado' : 'plain';
     const show = (selector, visible) => form.querySelectorAll(selector).forEach(el => el.hidden = !visible);
-    show('.stair-fields', stair && !coving);
-    show('.mdf-stair-note', !dado && !coving);
-    show('.bead-fields', !dado && !coving && finish.value.includes('bead'));
-    show('.ledge-fields', !dado && !coving && finish.value.includes('ledge'));
-    show('.dado-toggle-fields', !dado && !coving);
-    show('.rail-fields', !coving && (dado || form.elements.dado_enabled.checked));
+    form.querySelector('.measurement-panel:not(.cabinet-fields)').hidden = cabinet;
+    show('.cabinet-fields', cabinet);
+    show('.stair-fields', stair && !coving && !cabinet);
+    show('.mdf-stair-note', !dado && !coving && !cabinet);
+    show('.bead-fields', !dado && !coving && !cabinet && finish.value.includes('bead'));
+    show('.ledge-fields', !dado && !coving && !cabinet && finish.value.includes('ledge'));
+    show('.dado-toggle-fields', !dado && !coving && !cabinet);
+    show('.rail-fields', !coving && !cabinet && (dado || form.elements.dado_enabled.checked));
     show('.dado-gap-fields', dado && finish.value !== 'Dado');
     show('.dado-layout-fields', dado && finish.value !== 'Dado');
     show('.dado-top-fields', finish.value.includes('Top & Bottom'));
     show('.dado-inner-fields', finish.value.includes('Double'));
-    form.querySelector('.subtype-field').hidden = coving;
+    form.querySelector('.subtype-field').hidden = coving || cabinet;
     show('.coving-fields', coving);
-    for (const name of ['slat_width','mdf_id']) form.elements[name].closest('label').hidden = dado || coving;
-    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado || coving;
+    for (const name of ['slat_width','mdf_id']) form.elements[name].closest('label').hidden = dado || coving || cabinet;
+    for (const name of ['height','horizontal_squares','vertical_squares']) form.elements[name].closest('label').hidden = dado || coving || cabinet;
     const use = stair ? 'stair_dado' : 'continuous_dado';
     for (const option of form.elements.dado_rail_id.options) option.disabled = !!option.value && !option.dataset.uses.split(' ').includes(use);
 
   }
   type.addEventListener('change',update); finish.addEventListener('change',update); form.elements.dado_enabled.addEventListener('change',update); update();
+  form.elements.cabinet_preset.addEventListener('change', () => {
+    const seat = form.elements.cabinet_preset.value === 'window_seat';
+    const custom = form.elements.cabinet_preset.value === 'custom';
+    form.elements.top_rails.checked = !seat && !custom;
+    form.elements.full_top.checked = seat;
+    form.elements.face_frame.checked = !seat && !custom;
+    form.elements.worktop.checked = !seat && !custom;
+  });
   form.elements.ledge_choice.addEventListener('change', () => {
     const multiplier = {'2x':2,'3x':3}[form.elements.ledge_choice.value];
     if (multiplier) form.elements.ledge_width.value = Number(form.elements.mdf_id.selectedOptions[0].dataset.thickness)*multiplier;

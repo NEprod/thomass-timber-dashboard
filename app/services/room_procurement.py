@@ -5,6 +5,7 @@ from ..calculations.packing import pack
 from ..calculations.room_stock import _dado_stocks, _dado_use
 from ..calculations.room_stock import _coving_stocks
 from ..calculations.materials import kerf_for
+from ..calculations.sheet_optimizer import pack_sheet_parts, parts_on_owned_sheet
 from ..models import db, OwnedStockAllocation
 from .inventory import stock_dimensions
 
@@ -44,7 +45,15 @@ def stock_fits_room(quote, stock, room_id, extra_quantity=0):
             continue
         for cut in planned['cuts']:
             if product['category'] == 'mdf':
-                if cut['used_length_mm'] <= length + 1e-7 and cut['width_mm'] <= width + 1e-7:
+                if planned.get('packing_kind') == 'sheet':
+                    trim = quote.snapshot['pricing'].get('sheet_edge_trim', 10) if stock.stock_type == 'full' else 0
+                    if any(part_length <= length - 2 * trim + 1e-7 and
+                           part_width <= width - 2 * trim + 1e-7
+                           for part_length, part_width in ((cut['cut_length_mm'], cut['cut_width_mm']),
+                               (cut['cut_width_mm'], cut['cut_length_mm']))
+                           if cut.get('rotation_allowed', True) or part_length == cut['cut_length_mm']):
+                        return True
+                elif cut['used_length_mm'] <= length + 1e-7 and cut['width_mm'] <= width + 1e-7:
                     return True
             elif cut['length_mm'] <= length + 1e-7 and (
                     product['category'] != 'dado' or _dado_use(cut) in product.get('uses', [])):
@@ -91,9 +100,15 @@ def physical_pieces(quote, allocations=None):
     return sorted(pieces, key=lambda piece: (piece['length_mm'], piece['width_mm'], piece['source']))
 
 
-def _consume(cuts, piece, category, kerf):
+def _consume(cuts, piece, category, kerf, *, mode='linear', sheet_trim=10, sheet_kerf=3):
     length, width = piece['length_mm'], piece['width_mm']
-    if category == 'mdf':
+    if mode == 'sheet':
+        trim = sheet_trim if piece['full'] else 0
+        usable_length, usable_width = length - 2 * trim, width - 2 * trim
+        if usable_length <= 0 or usable_width <= 0:
+            return cuts
+        selected, _ = parts_on_owned_sheet(cuts, usable_length, usable_width, kerf=sheet_kerf)
+    elif category == 'mdf':
         eligible = [cut for cut in cuts if cut['used_length_mm'] <= length + 1e-7
                     and cut['width_mm'] <= width + 1e-7]
         if not eligible:
@@ -119,25 +134,52 @@ def procurement_plan(quote, result=None, allocations=None):
     pricing = quote.snapshot['pricing']
     demands = defaultdict(list)
     for stock in result['room_stocks']:
-        key = (stock['room_id'], family(catalogue, stock['material_id']))
+        key = (stock['room_id'], family(catalogue, stock['material_id']),
+               stock.get('packing_kind', 'linear'))
         demands[key].extend(dict(cut, material_id=stock['material_id']) for cut in stock['cuts'])
     unused_full = Counter()
+    def sheet_units(cuts, product, mode):
+        if not cuts:
+            return 0
+        if mode == 'sheet':
+            return len(pack_sheet_parts(cuts, product['length_mm'], product['width_mm'],
+                trim=pricing.get('sheet_edge_trim', 10), kerf=pricing.get('sheet_kerf', 3)))
+        return len(pack([dict(cut, length_mm=cut['width_mm']) for cut in cuts],
+                        product['width_mm'], kerf_for(product, pricing)))
+
     for piece in physical_pieces(quote, allocations):
-        key = (piece['room_id'], family(catalogue, piece['material_id']))
-        cuts = demands.get(key, [])
         product = catalogue[piece['material_id']]
         kerf = kerf_for(product, pricing)
-        remaining = _consume(cuts, piece, product['category'], kerf)
-        if len(remaining) == len(cuts) and piece['full']:
+        family_key = family(catalogue, piece['material_id'])
+        possibilities = []
+        for mode in ('sheet', 'linear'):
+            key = (piece['room_id'], family_key, mode)
+            cuts = demands.get(key, [])
+            if not cuts:
+                continue
+            remaining = _consume(cuts, piece, product['category'], kerf,
+                mode=mode, sheet_trim=pricing.get('sheet_edge_trim', 10),
+                sheet_kerf=pricing.get('sheet_kerf', 3))
+            if len(remaining) < len(cuts):
+                saved = (sheet_units(cuts, product, mode) - sheet_units(remaining, product, mode)
+                         if product['category'] == 'mdf' else len(cuts) - len(remaining))
+                possibilities.append((saved, len(cuts) - len(remaining), mode, key, remaining))
+        if not possibilities and piece['full']:
             unused_full[piece['material_id']] += 1
-        demands[key] = remaining
+        if possibilities:
+            _, _, _, key, remaining = max(possibilities)
+            demands[key] = remaining
     needs = Counter()
-    for (room_id, _), cuts in demands.items():
+    for (room_id, _, mode), cuts in demands.items():
         if not cuts:
             continue
         product = catalogue[cuts[0]['material_id']]
         kerf = kerf_for(product, pricing)
-        if product['category'] == 'dado':
+        if mode == 'sheet':
+            needs[(room_id, product['id'])] += len(pack_sheet_parts(cuts,
+                product['length_mm'], product['width_mm'],
+                trim=pricing.get('sheet_edge_trim', 10), kerf=pricing.get('sheet_kerf', 3)))
+        elif product['category'] == 'dado':
             stocks = _dado_stocks(cuts, catalogue, kerf, {cut['material_id'] for cut in cuts})
             for stock in stocks:
                 needs[(room_id, stock['material_id'])] += 1

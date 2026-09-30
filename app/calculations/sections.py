@@ -8,7 +8,7 @@ from .geometry import stair_geometry, WORKSHOP_ALLOWANCE_MM
 TYPES = {'PANELLING_FULL':'Full square panelling','PANELLING_HALF':'Half square panelling',
          'PANELLING_STAIR_HALF':'Stair half-wall panelling',
          'DADO_STRAIGHT':'Straight dado', 'DADO_STAIR':'Stair dado rail',
-         'COVING':'Coving'}
+         'COVING':'Coving', 'CABINET':'Cabinet / Built-in'}
 SUBTYPES = {'plain':'Plain','bead':'With bead','ledge':'With ledge','ledge_bead':'With ledge & bead'}
 DADO_STYLES = ['Dado','Dado Squares Top & Bottom','Dado Double Squares Top & Bottom','Dado Squares Bottom','Dado Double Squares Bottom']
 VERSION = '1.0-measured-legacy'
@@ -27,7 +27,11 @@ class Cut:
     angle_information: dict | None = None
     join_id: str | None = None
 
-def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='preview', coving_kerf=None):
+def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='preview',
+              coving_kerf=None, *, pricing=None, room_id=None):
+    if kind == 'CABINET':
+        from .cabinet import calculate_cabinet
+        return calculate_cabinet(inputs, options, catalogue, pricing or {}, work_item_id, room_id)
     if kind == 'COVING':
         return calculate_coving(inputs, catalogue, work_item_id, kerf if coving_kerf is None else coving_kerf)
     if kind in ('DADO_STRAIGHT', 'DADO_STAIR'):

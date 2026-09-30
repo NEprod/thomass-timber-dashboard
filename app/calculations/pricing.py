@@ -14,8 +14,14 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     materials={}; rip_demands=defaultdict(list); dado_demands=defaultdict(list)
     installed_slat=installed_finish=installed_dado=installed_coving=0
     measured_coving=0
+    cabinet_hours=cabinet_days=0
+    cabinet_has_parts=False
     for result in results:
         if not result.get('valid'): continue
+        if result.get('sheet_parts'):
+            cabinet_has_parts=True
+            cabinet_hours+=result.get('geometry',{}).get('workshop_hours',0)
+            cabinet_days+=result.get('geometry',{}).get('installation_days',0)
         if result.get('geometry',{}).get('finished_cut_length') is not None and any(
                 catalogue[g['material_id']]['category']=='coving' for g in result['groups'].values()):
             measured_coving+=result['geometry']['wall_length']
@@ -60,7 +66,7 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
         row['purchased_strip_m']=round(row['strip_stock_mm']/1000,6)
         row['remainder_m']=round((row['strip_stock_mm']-row['required_m']*1000-row['kerf_loss_mm'])/1000,6)
         row['cost']=money(row['new_purchase_units']*product['price']);cost+=row['cost']
-    has_work=bool(materials)
+    has_work=bool(materials) or cabinet_has_parts
     slat_m,finish_m,dado_m=installed_slat/1000,installed_finish/1000,installed_dado/1000
     mastic=math.ceil((slat_m+finish_m+dado_m+2*measured_coving/1000)/config['mastic_linear_coverage']*1.5) if has_work else 0
     mastic_cost=money(mastic*config['mastic_unit_price'])
@@ -68,13 +74,14 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     delivery=config['delivery_cost'] if has_work else 0
     material_cost=money(cost+mastic_cost+cut_cost+delivery)
     coving_m=installed_coving/1000
-    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp']+coving_m*config.get('coving_per_m_gbp',6.5))
+    labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp']+coving_m*config.get('coving_per_m_gbp',6.5)+cabinet_hours*config['hourly_rate']+cabinet_days*config['day_rate'])
     time_allowance=money(days*config['day_rate']+hours*config['hourly_rate']) if has_work else 0
     take_home=max(labour,time_allowance)
     valid=all(r.get('valid') for r in results)
     if rooms is not None:
         from .room_stock import pack_rooms
-        room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10))
+        room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10),
+            sheet_trim=config.get('sheet_edge_trim',10), sheet_kerf=config.get('sheet_kerf',3))
         materials = {row['material_id']: row for row in room_materials}
         cost = money(sum(row['cost'] for row in room_materials))
         material_cost = money(cost + mastic_cost + cut_cost + delivery)

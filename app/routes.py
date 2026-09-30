@@ -9,6 +9,7 @@ from .models import (db, User, Customer, Quote, Room, WorkItem, Material, Pricin
                      Consumable, QuoteConsumable, AdditionalCharge, Payment,
                      JobMaterialState, JobPurchase, OwnedStock, OwnedStockAllocation, now)
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
+from .calculations.cabinet import PRESETS as CABINET_PRESETS
 from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
 from .calculations.packing import number, CalculationError
 from .services.quotes import current_snapshot, recalculate_item, reaggregate, refresh_prices, material_plan
@@ -124,7 +125,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(types=TYPES,subtypes=SUBTYPES,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date)
+def shared():return dict(types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
@@ -420,6 +421,15 @@ def quote_edit(quote_id):
                     kind=field('type')
                     if kind not in TYPES:raise CalculationError('Choose a supported work type.')
                     item=WorkItem(name=field('name',True),type=kind,subtype='Dado' if kind.startswith('DADO_') else 'plain',inputs={'slat_width':100,'horizontal_squares':4,'vertical_squares':1,'gap_width':100,'bottom_squares':4,'top_squares':4},options={'mdf_id':'mdf-9mm','ledge_width':18},position=len(room.items))
+                    if kind=='CABINET':
+                        item.inputs={'divider_count':0,'shelves_per_bay':0,'door_count':0,
+                                     'plinth_support_count':0,'front_overhang':0,
+                                     'workshop_hours':0,'installation_days':0}
+                        item.options={'cabinet_preset':'alcove','back_material_id':'mdf-9mm',
+                                      'top_rails':True,'face_frame':True,'worktop':True,
+                                      'sides_enabled':True,'bottom_enabled':True,
+                                      'sheet_rotation_allowed':True,
+                                      'door_banding':'all','base_type':'none'}
                     room.items.append(item);db.session.flush();recalculate_item(item,q.snapshot)
                 else:
                     item=next((i for i in room.items if i.id==request.form.get('item_id',type=int)),None)
@@ -433,9 +443,22 @@ def quote_edit(quote_id):
                         item.name=field('name',True);item.type=field('type');item.subtype=field('subtype')
                         item.notes=field('notes',limit=5000)
                         item.position=int(number(request.form.get('position',0),'Item order',allow_zero=True,maximum=1000))
-                        item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset','start_corner','end_corner']}
-                        item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice','dado_rail_id','dado_square_id']}
-                        item.options['dado_enabled']='dado_enabled' in request.form
+                        if item.type=='CABINET':
+                            item.inputs={k:field(k,limit=50) for k in ['opening_width','opening_height','opening_depth',
+                                'unit_width','unit_height','unit_depth',
+                                'divider_count','divider_height','shelves_per_bay','door_count','front_overhang',
+                                'plinth_front_back_length','plinth_side_length','plinth_height','plinth_front_recess','plinth_support_count',
+                                'workshop_hours','installation_days']}
+                            item.options={k:field(k) for k in ['cabinet_preset','carcass_material_id','back_material_id',
+                                'worktop_material_id','door_material_id','face_frame_material_id',
+                                'plinth_material_id','door_banding','base_type']}
+                            item.options.update({k:k in request.form for k in
+                                ['sides_enabled','bottom_enabled','top_rails','full_top','hinged_lid',
+                                 'back_enabled','face_frame','worktop','sheet_rotation_allowed']})
+                        else:
+                            item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset','start_corner','end_corner']}
+                            item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice','dado_rail_id','dado_square_id']}
+                            item.options['dado_enabled']='dado_enabled' in request.form
                         recalculate_item(item,q.snapshot)
             else:abort(400,description='Unknown quote action.')
             reaggregate(q);db.session.commit()
@@ -459,7 +482,7 @@ def materials():
         try:
             if request.form.get('action')=='pricing':
                 config=db.session.get(PricingConfig,1)
-                vals={k:(whole(request.form.get(k),'Mastic quantity on hand') if k=='mastic_on_hand' else number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k in ('kerf','coving_kerf') else 100000)) for k in config.values}
+                vals={k:(whole(request.form.get(k),'Mastic quantity on hand') if k=='mastic_on_hand' else number(request.form.get(k),k.replace('_',' '),allow_zero=k!='mastic_linear_coverage',maximum=50 if k in ('kerf','coving_kerf','sheet_kerf') else (100 if k=='sheet_edge_trim' else 100000))) for k in config.values}
                 config.values=vals
             elif request.form.get('action')=='add_consumable':
                 db.session.add(Consumable(label=field('label',True),unit_label=field('unit_label',True,limit=80),price=number(request.form.get('price'),'Price',allow_zero=True,maximum=100000)))

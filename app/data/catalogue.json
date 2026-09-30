@@ -504,6 +504,18 @@
     "hourly_rate": 22.5,
     "mdf_slat_per_m_gbp": 4.9,
     "bead_per_m_gbp": 4,
-    "dado_per_m_gbp": 6.5
+    "dado_per_m_gbp": 6.5,
+    "cabinet_top_rail_depth": 100,
+    "cabinet_face_rail_height": 100,
+    "cabinet_scribe_allowance": 50,
+    "cabinet_shelf_setback": 18,
+    "cabinet_back_inset": 50,
+    "cabinet_worktop_rear_allowance": 50,
+    "cabinet_plinth_height": 100,
+    "cabinet_plinth_front_recess": 50,
+    "cabinet_door_gap": 2,
+    "cabinet_edge_band": 1,
+    "sheet_edge_trim": 10,
+    "sheet_kerf": 3
   }
 }

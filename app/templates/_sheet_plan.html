@@ -1,0 +1,20 @@
+<div class="sheet-plan">
+  <div class="strip-heading"><strong>Sheet {{ stock.sheet_number }} of {{ stock.sheet_total }} · {{ catalogue[stock.material_id].label }} · {{ catalogue[stock.material_id].thickness_mm|round(1) }} mm</strong><span>{{ stock.stock_length_mm|round(0)|int }} × {{ stock.stock_width_mm|round(0)|int }} mm · {{ stock.trim_mm|round(1) }} mm edge trim</span></div>
+  <div class="sheet-plan-scroll">
+    <svg class="sheet-diagram" viewBox="0 0 {{ stock.stock_length_mm }} {{ stock.stock_width_mm }}" role="img" aria-label="Guillotine sheet plan for {{ stock.room_name }} sheet {{ stock.sheet_number }}">
+      <rect x="0" y="0" width="{{ stock.stock_length_mm }}" height="{{ stock.stock_width_mm }}" fill="#e9e6dc" stroke="#333" stroke-width="4"/>
+      <rect x="{{ stock.trim_mm }}" y="{{ stock.trim_mm }}" width="{{ stock.stock_length_mm - 2 * stock.trim_mm }}" height="{{ stock.stock_width_mm - 2 * stock.trim_mm }}" fill="#fff" stroke="#777" stroke-width="3" stroke-dasharray="12 8"/>
+      {% for offcut in stock.sheet_offcuts %}{% if offcut.length_mm > 0 and offcut.width_mm > 0 %}
+      <rect x="{{ offcut.x }}" y="{{ offcut.y }}" width="{{ offcut.length_mm }}" height="{{ offcut.width_mm }}" fill="{{ '#e7efd1' if offcut.reusable else '#eee9e3' }}" stroke="#b2ab9c" stroke-width="2"><title>{{ 'Reusable offcut' if offcut.reusable else 'Waste' }} · {{ offcut.length_mm|round(1) }} × {{ offcut.width_mm|round(1) }} mm</title></rect>
+      {% endif %}{% endfor %}
+      {% for part in stock.cuts %}
+      <g><rect x="{{ part.x }}" y="{{ part.y }}" width="{{ part.length_mm }}" height="{{ part.width_mm }}" fill="#dbe6b7" stroke="#3a4934" stroke-width="3"/><title>{{ part.wall_name }} / {{ part.label }} · {{ part.cut_length_mm|round(1) }} × {{ part.cut_width_mm|round(1) }} mm</title>
+      {% if part.length_mm > 170 and part.width_mm > 75 %}<text x="{{ part.x + 12 }}" y="{{ part.y + 32 }}" font-size="26" fill="#253128">{{ loop.index }} · {{ part.label|truncate(24) }}</text>{% endif %}</g>
+      {% endfor %}
+      {% for line in stock.sheet_cut_lines %}<line x1="{{ line.x1 }}" y1="{{ line.y1 }}" x2="{{ line.x2 }}" y2="{{ line.y2 }}" stroke="#bd7524" stroke-width="3" stroke-dasharray="9 7" pointer-events="none"/>{% endfor %}
+    </svg>
+  </div>
+  <p class="hint">Green: finished sheet parts · pale green: theoretical reusable offcut · grey: waste · dashed line: full-region guillotine cut.</p>
+  <ol class="sheet-part-list">{% for part in stock.cuts %}<li><strong>{{ part.wall_name }} / {{ part.label }}</strong> — {{ part.cut_length_mm|round(1) }} × {{ part.cut_width_mm|round(1) }} mm{% if part.rotated %} · rotated{% endif %}</li>{% endfor %}</ol>
+  {% for offcut in stock.sheet_offcuts if offcut.reusable %}<p class="hint">Theoretical reusable offcut: {{ offcut.length_mm|round(1) }} × {{ offcut.width_mm|round(1) }} mm. Confirm actual retained stock separately.</p>{% endfor %}
+</div>

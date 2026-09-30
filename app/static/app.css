@@ -51,3 +51,9 @@
   .receipt-table td[data-label]::before{content:attr(data-label);display:block;font-size:10px;color:var(--muted);text-transform:uppercase}
   .receipt-table td[data-label="Job"],.receipt-table td[data-label="File"],.receipt-table td:last-child{grid-column:1/-1}
 }
+.sheet-plan{min-width:0;margin:1rem 0;padding:1rem;border:1px solid var(--line,#d9d5c9);border-radius:12px;background:#fff}
+.sheet-plan-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:.7rem 0}
+.sheet-diagram{display:block;width:100%;height:auto;min-width:420px;max-height:560px}
+.sheet-part-list{margin:.7rem 0;padding-left:1.5rem;columns:2;column-gap:2rem}
+.sheet-part-list li{break-inside:avoid;margin:.25rem 0}
+@media(max-width:600px){.sheet-plan{padding:.7rem}.sheet-part-list{columns:1}}

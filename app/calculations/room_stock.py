@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from .packing import CalculationError, pack
 from .pricing import money
+from .sheet_optimizer import pack_sheet_parts
 
 
 def _wall_spread(stocks):
@@ -149,7 +150,7 @@ def _coving_stocks(cuts, catalogue, kerf, source_ids):
     return stocks
 
 
-def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
+def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10, sheet_trim=10, sheet_kerf=3):
     """Return chargeable stock and a workshop plan, without altering item results."""
     room_stocks = []
     room_demands = defaultdict(lambda: defaultdict(list))
@@ -157,10 +158,14 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
     for room in rooms:
         buckets = defaultdict(list)
         mdf_rips = defaultdict(list)
+        sheet_parts = defaultdict(list)
         for item in room['items']:
             result = item['result']
             if not result.get('valid'):
                 continue
+            for part in result.get('sheet_parts', []):
+                sheet_parts[part['material_id']].append(dict(part, room_id=room['id'],
+                    room_name=room['name'], wall_name=item['name'], work_item_id=str(item['id'])))
             for group in result.get('groups', {}).values():
                 product = catalogue[group['material_id']]
                 family = (('dado', product['profile'], product['width_mm'], product['thickness_mm'])
@@ -230,6 +235,20 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
                                         finished_kerf_mm=sum(
                                             pack(rip['finished_cuts'], product['length_mm'], kerf)[0]['kerf_loss_mm']
                                             for rip in board['cuts'])))
+        for material_id, parts in sheet_parts.items():
+            product = catalogue[material_id]
+            for board in pack_sheet_parts(parts, product['length_mm'], product['width_mm'],
+                                          trim=sheet_trim, kerf=sheet_kerf):
+                room_stocks.append(dict(room_id=room['id'], room_name=room['name'],
+                    material_id=material_id, category='mdf', packing_kind='sheet',
+                    stock_length_mm=product['length_mm'], stock_width_mm=product['width_mm'],
+                    cuts=board['placements'], sheet_tree=board['tree'],
+                    sheet_cut_lines=board['cut_lines'],
+                    sheet_offcuts=board['offcuts'], trim_mm=sheet_trim,
+                    kerf_loss_mm=0, remainder_mm=0,
+                    used_mm=sum(p['length_mm'] * p['width_mm'] for p in board['placements'])))
+                room_demands[material_id][room['id']].extend(
+                    dict(part, _inventory_id=part['id']) for part in board['placements'])
     for stock in room_stocks:
         product = catalogue[stock['material_id']]
         row = material_rows.setdefault(product['id'], dict(
@@ -237,13 +256,17 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
             required_mm=0, allocated_existing_mm=0, new_purchase_units=0,
             strip_stock_mm=0, kerf_loss_mm=0, stocks=[], boards=[]))
         row['new_purchase_units'] += 1
-        row['required_mm'] += sum(
-            sum(cut['length_mm'] for cut in rip['finished_cuts']) for rip in stock['cuts']
-        ) if product['category'] == 'mdf' else sum(cut['length_mm'] for cut in stock['cuts'])
-        row['strip_stock_mm'] += (stock['strip_stock_mm'] if product['category'] == 'mdf'
-                                  else stock['stock_length_mm'])
-        row['kerf_loss_mm'] += (stock['finished_kerf_mm'] if product['category'] == 'mdf'
-                                else stock['kerf_loss_mm'])
+        if stock.get('packing_kind') == 'sheet':
+            row['required_mm'] += sum(cut['cut_length_mm'] for cut in stock['cuts'])
+            row['strip_stock_mm'] += stock['stock_length_mm']
+        else:
+            row['required_mm'] += sum(
+                sum(cut['length_mm'] for cut in rip['finished_cuts']) for rip in stock['cuts']
+            ) if product['category'] == 'mdf' else sum(cut['length_mm'] for cut in stock['cuts'])
+            row['strip_stock_mm'] += (stock['strip_stock_mm'] if product['category'] == 'mdf'
+                                      else stock['stock_length_mm'])
+            row['kerf_loss_mm'] += (stock['finished_kerf_mm'] if product['category'] == 'mdf'
+                                    else stock['kerf_loss_mm'])
         row['boards' if product['category'] == 'mdf' else 'stocks'].append(stock)
     for material_id, row in material_rows.items():
         product = catalogue[material_id]
@@ -255,5 +278,6 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10):
                                for room_id, demands in room_demands[material_id].items()]
         if product['category'] == 'mdf':
             row['purchased_area_m2'] = round(row['new_purchase_units'] * product['length_mm'] * product['width_mm'] / 1e6, 6)
-            row['rip_remainder_area_m2'] = round(sum(stock['remainder_mm'] for stock in row['boards']) * product['length_mm'] / 1e6, 6)
+            row['rip_remainder_area_m2'] = round(sum(stock['remainder_mm'] for stock in row['boards']
+                if stock.get('packing_kind') != 'sheet') * product['length_mm'] / 1e6, 6)
     return list(material_rows.values()), room_stocks
