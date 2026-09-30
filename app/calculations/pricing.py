@@ -18,8 +18,9 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     cabinet_has_parts=False
     for result in results:
         if not result.get('valid'): continue
-        if result.get('sheet_parts'):
-            cabinet_has_parts=True
+        is_cabinet = 'sheet_parts' in result
+        if is_cabinet:
+            cabinet_has_parts |= bool(result['sheet_parts'] or result['groups'])
             cabinet_hours+=result.get('geometry',{}).get('workshop_hours',0)
             cabinet_days+=result.get('geometry',{}).get('installation_days',0)
         if result.get('geometry',{}).get('finished_cut_length') is not None and any(
@@ -46,7 +47,8 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
             elif product['category']=='coving':
                 row['new_purchase_units']+=len(strips);installed_coving+=required
             else:
-                row['new_purchase_units']+=len(strips);installed_finish+=required
+                row['new_purchase_units']+=len(strips)
+                if not is_cabinet: installed_finish+=required
     cost=0; total_rips=0
     for key,row in materials.items():
         product=catalogue[key]

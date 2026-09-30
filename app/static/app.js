@@ -57,14 +57,34 @@ for (const form of document.querySelectorAll('.item-form')) {
 
   }
   type.addEventListener('change',update); finish.addEventListener('change',update); form.elements.dado_enabled.addEventListener('change',update); update();
+  function updateCabinet() {
+    const preset = form.elements.cabinet_preset.value;
+    const top = ['window_seat','bench'].includes(preset) ||
+      (preset === 'custom' && form.elements.construction_mode.value === 'top');
+    const show = (selector, visible) => form.querySelectorAll(selector).forEach(el => el.hidden = !visible);
+    show('.cabinet-custom', preset === 'custom');
+    show('.cabinet-front', !top);
+    show('.cabinet-top', top);
+    show('.cabinet-sheet-worktop', !top && form.elements.worktop_type.value === 'sheet');
+    show('.cabinet-pse-worktop', !top && form.elements.worktop_type.value === 'pse');
+    show('.cabinet-shaker', !top && form.elements.door_style.value === 'shaker');
+    show('.cabinet-flat-bead', !top && form.elements.door_style.value === 'flat' && !!form.elements.door_bead_id.value);
+    show('.cabinet-feet', form.elements.base_type.value === 'legs');
+  }
   form.elements.cabinet_preset.addEventListener('change', () => {
-    const seat = form.elements.cabinet_preset.value === 'window_seat';
+    const seat = ['window_seat','bench'].includes(form.elements.cabinet_preset.value);
     const custom = form.elements.cabinet_preset.value === 'custom';
-    form.elements.top_rails.checked = !seat && !custom;
+    form.elements.construction_mode.value = seat ? 'top' : 'front';
+    form.elements.top_rails.checked = !seat;
     form.elements.full_top.checked = seat;
     form.elements.face_frame.checked = !seat && !custom;
-    form.elements.worktop.checked = !seat && !custom;
+    form.elements.worktop_type.value = !seat && !custom ? 'sheet' : 'none';
+    updateCabinet();
   });
+  for (const name of ['construction_mode','worktop_type','door_style','door_bead_id','base_type']) {
+    form.elements[name].addEventListener('change', updateCabinet);
+  }
+  updateCabinet();
   form.elements.ledge_choice.addEventListener('change', () => {
     const multiplier = {'2x':2,'3x':3}[form.elements.ledge_choice.value];
     if (multiplier) form.elements.ledge_width.value = Number(form.elements.mdf_id.selectedOptions[0].dataset.thickness)*multiplier;

@@ -489,6 +489,54 @@
       "active": true,
       "preferred_stock_mm": null,
       "uses": []
+    },
+    {
+      "id": "mdf-18mm",
+      "category": "mdf",
+      "profile": "18mm",
+      "label": "MDF Full 18mm Sheet (2440x1220)",
+      "length_mm": 2440,
+      "width_mm": 1220,
+      "thickness_mm": 18,
+      "price": 29,
+      "active": true,
+      "uses": []
+    },
+    {
+      "id": "mdf-mr-18mm",
+      "category": "mdf",
+      "profile": "mr-18mm",
+      "label": "Moisture Resistant MDF 18mm Sheet (2440x1220)",
+      "length_mm": 2440,
+      "width_mm": 1220,
+      "thickness_mm": 18,
+      "price": 46,
+      "active": true,
+      "uses": []
+    },
+    {
+      "id": "mdf-mr-9mm",
+      "category": "mdf",
+      "profile": "mr-9mm",
+      "label": "Moisture Resistant MDF 9mm Sheet (2440x1220)",
+      "length_mm": 2440,
+      "width_mm": 1220,
+      "thickness_mm": 9,
+      "price": 35,
+      "active": true,
+      "uses": []
+    },
+    {
+      "id": "pse-100x25-2.4m",
+      "category": "pse",
+      "profile": "100x25",
+      "label": "100 \u00d7 25mm PSE timber 2.4m",
+      "length_mm": 2400,
+      "width_mm": 100,
+      "thickness_mm": 25,
+      "price": 7,
+      "active": true,
+      "uses": []
     }
   ],
   "pricing": {
@@ -516,6 +564,11 @@
     "cabinet_door_gap": 2,
     "cabinet_edge_band": 1,
     "sheet_edge_trim": 10,
-    "sheet_kerf": 3
+    "sheet_kerf": 3,
+    "cabinet_shaker_stile_width": 100,
+    "cabinet_shaker_rail_width": 100,
+    "cabinet_shaker_panel_engagement": 5,
+    "cabinet_flat_bead_inset": 100,
+    "cabinet_bench_scribe_allowance": 50
   }
 }

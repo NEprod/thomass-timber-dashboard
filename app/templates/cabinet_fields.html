@@ -2,41 +2,49 @@
   <h4>Cabinet / Built-in construction</h4>
   <div class="fields three">
     <label>Preset<select name="cabinet_preset">{% for key,label in cabinet_presets.items() %}<option value="{{ key }}" {{ 'selected' if item.options.get('cabinet_preset','alcove')==key }}>{{ label }}</option>{% endfor %}</select></label>
-    {{ input('opening_width','Opening / alcove width · mm',item.inputs.get('opening_width',''),type='number',step='any') }}
-    {{ input('opening_height','Opening height · mm (optional)',item.inputs.get('opening_height',''),type='number',step='any') }}
-    {{ input('opening_depth','Opening depth · mm (optional)',item.inputs.get('opening_depth',''),type='number',step='any') }}
+    <label class="cabinet-custom">Construction / access mode<select name="construction_mode"><option value="front" {{ 'selected' if item.options.get('construction_mode','front')=='front' }}>Front-opening</option><option value="top" {{ 'selected' if item.options.get('construction_mode')=='top' }}>Top-opening</option></select></label>
+    <div class="cabinet-front">{{ input('opening_width','Opening / alcove width · mm',item.inputs.get('opening_width',''),type='number',step='any') }}</div>
+    <div class="cabinet-front">{{ input('opening_height','Opening height · mm (optional)',item.inputs.get('opening_height',''),type='number',step='any') }}</div>
+    <div class="cabinet-front">{{ input('opening_depth','Opening depth · mm (optional)',item.inputs.get('opening_depth',''),type='number',step='any') }}</div>
     {{ input('unit_width','Finished unit width · mm',item.inputs.get('unit_width',''),type='number',step='any') }}
-    {{ input('unit_height','Finished unit height · mm',item.inputs.get('unit_height',''),type='number',step='any') }}
+    {{ input('unit_height','Finished carcass height · mm',item.inputs.get('unit_height',''),type='number',step='any') }}
     {{ input('unit_depth','Finished unit depth · mm',item.inputs.get('unit_depth',''),type='number',step='any') }}
     <label>Carcass sheet material<select name="carcass_material_id"><option value="">Choose a sheet</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('carcass_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('carcass_material_id') }}>{{ m.label }} · {{ m.thickness_mm|int }} mm</option>{% endfor %}</select></label>
   </div>
   <div class="fields four">
     {{ input('divider_count','Equal-bay dividers',item.inputs.get('divider_count',0),type='number',step='1') }}
-    {{ input('divider_height','Divider cut height · mm',item.inputs.get('divider_height',''),type='number',step='any') }}
+    <div class="cabinet-front">{{ input('divider_height','Divider cut height · mm',item.inputs.get('divider_height',''),type='number',step='any') }}</div>
     {{ input('shelves_per_bay','Shelves per bay',item.inputs.get('shelves_per_bay',0),type='number',step='1') }}
-    {{ input('door_count','Overlay doors',item.inputs.get('door_count',0),type='number',step='1') }}
+    <div class="cabinet-front">{{ input('door_count','Overlay doors',item.inputs.get('door_count',0),type='number',step='1') }}</div>
   </div>
   <div class="fields three">
-    <label class="check"><input type="checkbox" name="sides_enabled" {{ 'checked' if item.options.get('sides_enabled',True) }}>Carcass sides</label>
-    <label class="check"><input type="checkbox" name="bottom_enabled" {{ 'checked' if item.options.get('bottom_enabled',True) }}>Carcass bottom</label>
-    <label class="check"><input type="checkbox" name="top_rails" {{ 'checked' if item.options.get('top_rails',True) }}>Twin top rails</label>
-    <label class="check"><input type="checkbox" name="full_top" {{ 'checked' if item.options.get('full_top') }}>Full top / lid</label>
+    <label class="check cabinet-front"><input type="checkbox" name="sides_enabled" {{ 'checked' if item.options.get('sides_enabled',True) }}>Carcass sides</label>
+    <label class="check cabinet-front"><input type="checkbox" name="bottom_enabled" {{ 'checked' if item.options.get('bottom_enabled',True) }}>Carcass bottom</label>
+    <label class="check cabinet-front"><input type="checkbox" name="top_rails" {{ 'checked' if item.options.get('top_rails',True) }}>Twin top rails</label>
+    <label class="check cabinet-front"><input type="checkbox" name="full_top" {{ 'checked' if item.options.get('full_top') }}>Full top / lid</label>
     <label class="check"><input type="checkbox" name="hinged_lid" {{ 'checked' if item.options.get('hinged_lid') }}>Hinged lid</label>
-    <label class="check"><input type="checkbox" name="back_enabled" {{ 'checked' if item.options.get('back_enabled') }}>Full inset back</label>
-    <label class="check"><input type="checkbox" name="face_frame" {{ 'checked' if item.options.get('face_frame',True) }}>Face-frame / scribes</label>
-    <label class="check"><input type="checkbox" name="worktop" {{ 'checked' if item.options.get('worktop',True) }}>Separate worktop</label>
+    <label class="check cabinet-front"><input type="checkbox" name="back_enabled" {{ 'checked' if item.options.get('back_enabled') }}>Full inset back</label>
+    <label class="check cabinet-front"><input type="checkbox" name="face_frame" {{ 'checked' if item.options.get('face_frame',True) }}>Face-frame / scribes</label>
     <label class="check"><input type="checkbox" name="sheet_rotation_allowed" {{ 'checked' if item.options.get('sheet_rotation_allowed',True) }}>Allow sheet-part rotation</label>
   </div>
   <div class="fields three">
-    <label>Back sheet material<select name="back_material_id"><option value="">Choose when a back is fitted</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('back_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('back_material_id','mdf-9mm') }}>{{ m.label }}</option>{% endfor %}</select></label>
-    <label>Worktop sheet material<select name="worktop_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('worktop_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('worktop_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
-    <label>Door sheet material<select name="door_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('door_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('door_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
-    <label>Face-frame sheet material<select name="face_frame_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('face_frame_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('face_frame_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-front">Back sheet material<select name="back_material_id"><option value="">Choose when a back is fitted</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('back_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('back_material_id','mdf-9mm') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-front">Worktop construction<select name="worktop_type">{% set worktop_type=item.options.get('worktop_type') or ('sheet' if item.options.get('worktop',item.options.get('cabinet_preset','alcove')=='alcove') else 'none') %}<option value="none" {{ 'selected' if worktop_type=='none' }}>None</option><option value="sheet" {{ 'selected' if worktop_type=='sheet' }}>Sheet material</option><option value="pse" {{ 'selected' if worktop_type=='pse' }}>Glue-up PSE timber</option></select></label>
+    <label class="cabinet-sheet-worktop">Worktop sheet material<select name="worktop_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('worktop_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('worktop_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-pse-worktop">Worktop PSE timber<select name="pse_material_id">{% for id,m in catalogue.items() if m.category=='pse' and (m.active or id==item.options.get('pse_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('pse_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-front">Door style<select name="door_style"><option value="flat" {{ 'selected' if item.options.get('door_style','flat')=='flat' }}>Flat</option><option value="shaker" {{ 'selected' if item.options.get('door_style')=='shaker' }}>Shaker</option></select></label>
+    <label class="cabinet-front">Door sheet material<select name="door_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('door_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('door_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-shaker">Shaker centre panel material<select name="shaker_panel_material_id">{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('shaker_panel_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('shaker_panel_material_id','mdf-9mm') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <label class="cabinet-front">Door bead / moulding<select name="door_bead_id"><option value="">None</option>{% for id,m in catalogue.items() if m.category=='bead' and (m.active or id==item.options.get('door_bead_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('door_bead_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
+    <div class="cabinet-flat-bead">{{ input('door_bead_inset','Flat-door bead inset · mm',item.inputs.get('door_bead_inset',quote.snapshot.pricing.get('cabinet_flat_bead_inset',100)),type='number',step='any') }}</div>
+    <label class="cabinet-front">Face-frame sheet material<select name="face_frame_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('face_frame_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('face_frame_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
     <label>Plinth sheet material<select name="plinth_material_id"><option value="">Same as carcass</option>{% for id,m in catalogue.items() if m.category=='mdf' and (m.active or id==item.options.get('plinth_material_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('plinth_material_id') }}>{{ m.label }}</option>{% endfor %}</select></label>
-    {{ input('front_overhang','Customer front overhang · mm',item.inputs.get('front_overhang',0),type='number',step='any') }}
-    <label>Door edge banding<select name="door_banding"><option value="all" {{ 'selected' if item.options.get('door_banding','all')=='all' }}>All four edges</option><option value="none" {{ 'selected' if item.options.get('door_banding')=='none' }}>None</option></select></label>
+    <div class="cabinet-front">{{ input('front_overhang','Customer front overhang · mm',item.inputs.get('front_overhang',0),type='number',step='any') }}</div>
+    <label class="cabinet-front">Door edge banding<select name="door_banding"><option value="all" {{ 'selected' if item.options.get('door_banding','all')=='all' }}>All four edges</option><option value="none" {{ 'selected' if item.options.get('door_banding')=='none' }}>None</option></select></label>
+    <label class="cabinet-top">Scribed sides<select name="scribed_sides">{% for key,label in [('none','None'),('left','Left'),('right','Right'),('both','Both')] %}<option value="{{ key }}" {{ 'selected' if item.options.get('scribed_sides','none')==key }}>{{ label }}</option>{% endfor %}</select></label>
     <label>Base type<select name="base_type"><option value="none" {{ 'selected' if item.options.get('base_type','none')=='none' }}>None</option><option value="legs" {{ 'selected' if item.options.get('base_type')=='legs' }}>Legs</option><option value="plinth" {{ 'selected' if item.options.get('base_type')=='plinth' }}>Plinth / box base</option></select></label>
   </div>
+  <p class="hint cabinet-top">Top-opening uprights stand on the full bottom. The full overlay lid adds its material thickness to assembly height; selected side scribes cover that height plus the entered base height.</p>
   <p class="hint">For a plinth, enter confirmed frame cut lengths; no hidden joinery allowance is assumed.</p>
   <div class="fields four">
     {{ input('plinth_front_back_length','Plinth front/back length · mm',item.inputs.get('plinth_front_back_length',''),type='number',step='any') }}
@@ -44,6 +52,7 @@
     {{ input('plinth_height','Plinth height · mm',item.inputs.get('plinth_height',quote.snapshot.pricing.get('cabinet_plinth_height',100)),type='number',step='any') }}
     {{ input('plinth_front_recess','Plinth front recess · mm',item.inputs.get('plinth_front_recess',quote.snapshot.pricing.get('cabinet_plinth_front_recess',50)),type='number',step='any') }}
     {{ input('plinth_support_count','Plinth internal supports',item.inputs.get('plinth_support_count',0),type='number',step='1') }}
+    <div class="cabinet-feet">{{ input('feet_height','Feet / legs height · mm',item.inputs.get('feet_height',0),type='number',step='any') }}</div>
     {{ input('workshop_hours','Workshop / manufacturing hours',item.inputs.get('workshop_hours',0),type='number',step='any') }}
     {{ input('installation_days','Installation days',item.inputs.get('installation_days',0),type='number',step='any') }}
   </div>

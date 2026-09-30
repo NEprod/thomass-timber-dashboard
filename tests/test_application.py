@@ -132,13 +132,13 @@ def test_stale_revision_and_foreign_room_rejected(app,signed_in):
     with app.app_context():assert db.session.get(Room,room) is not None
 
 
-def test_actual_migration_and_idempotent_seed(tmp_path):
+def test_actual_migration_and_idempotent_seed(tmp_path, seed_data):
     application=create_app({'TESTING':True,'SECRET_KEY':'migration-test','SQLALCHEMY_DATABASE_URI':'sqlite:///'+str(tmp_path/'migrated.db')})
     runner=application.test_cli_runner()
     first=runner.invoke(args=['init-db']);assert first.exit_code==0,first.output
     second=runner.invoke(args=['init-db']);assert second.exit_code==0,second.output
     with application.app_context():
-        assert db.session.scalar(db.select(db.func.count(Material.id)))==33
+        assert db.session.scalar(db.select(db.func.count(Material.id)))==len(seed_data['materials'])
         assert db.session.get(Material,'coving-127x127-3m').price==10
         assert db.session.get(Material,'coving-127x127-3.6m').price==12
         assert db.session.get(PricingConfig,1).values['kerf']==3

@@ -99,7 +99,7 @@ def new_material_id(category, label):
     return candidate
 
 def create_material(category):
-    if category not in ('mdf','bead','dado','coving'):raise CalculationError('Choose a valid material family.')
+    if category not in ('mdf','bead','dado','coving','pse'):raise CalculationError('Choose a valid material family.')
     label=field('label',True)
     uses=request.form.getlist('uses')
     if any(use not in USES for use in uses):raise CalculationError('Unknown material use.')
@@ -448,10 +448,12 @@ def quote_edit(quote_id):
                                 'unit_width','unit_height','unit_depth',
                                 'divider_count','divider_height','shelves_per_bay','door_count','front_overhang',
                                 'plinth_front_back_length','plinth_side_length','plinth_height','plinth_front_recess','plinth_support_count',
-                                'workshop_hours','installation_days']}
+                                'workshop_hours','installation_days','feet_height','door_bead_inset']}
                             item.options={k:field(k) for k in ['cabinet_preset','carcass_material_id','back_material_id',
                                 'worktop_material_id','door_material_id','face_frame_material_id',
-                                'plinth_material_id','door_banding','base_type']}
+                                'plinth_material_id','door_banding','base_type','construction_mode',
+                                'worktop_type','pse_material_id','door_style','shaker_panel_material_id',
+                                'door_bead_id','scribed_sides']}
                             item.options.update({k:k in request.form for k in
                                 ['sides_enabled','bottom_enabled','top_rails','full_top','hinged_lid',
                                  'back_enabled','face_frame','worktop','sheet_rotation_allowed']})

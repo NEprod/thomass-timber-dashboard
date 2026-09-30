@@ -133,7 +133,7 @@ def test_alcove_parts_back_face_frame_bays_doors_and_labour(catalogue, seed_data
 
 def test_cabinet_presets_and_room_boundary(catalogue, seed_data):
     catalogue = _cabinet_catalogue(catalogue)
-    inputs = dict(unit_width=700, unit_height=500, unit_depth=400, divider_count=0,
+    inputs = dict(unit_width=500, unit_height=350, unit_depth=250, divider_count=0,
                   shelves_per_bay=0, door_count=0, workshop_hours=0, installation_days=0)
     seat = calculate_cabinet(inputs, dict(cabinet_preset='window_seat', carcass_material_id='mdf-18mm',
                                           full_top=True, hinged_lid=True), catalogue, seed_data['pricing'], 'seat')
@@ -197,10 +197,9 @@ def test_existing_mdf_rips_and_cabinet_rectangles_coexist(catalogue, seed_data):
 def test_current_quote_cabinet_saves_reopens_and_shows_sheet_plan(app, signed_in):
     client = signed_in
     with app.app_context():
-        source = db.session.get(Material, 'mdf-12mm')
-        db.session.add(Material(id='mdf-18mm', category='mdf', profile='18mm',
-            label='18mm MDF sheet', length_mm=source.length_mm, width_mm=source.width_mm,
-            thickness_mm=18, price=30, active=True, uses=[]))
+        material = db.session.get(Material, 'mdf-18mm')
+        material.label = '18mm MDF sheet'
+        material.price = 30
         db.session.commit()
     qid = create_quote(client, app)
     rid = add_room(client, app, qid, 'Living Room')
