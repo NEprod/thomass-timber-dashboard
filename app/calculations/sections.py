@@ -132,6 +132,13 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
     # the workshop cut plan are decided from all labelled cuts in the room.
     strip_counts = {name: len(pack(group['cuts'], catalogue[group['material_id']]['length_mm'], kerf))
                     for name, group in groups.items()}
+    from .wall_layout import panelling_layout
+    geometry['wall_layout'] = panelling_layout(kind, w, h, n, r, s, geometry,
+        bead='bead' in subtype, lower=lower if kind=='PANELLING_STAIR_HALF' else 0,
+        upper=upper if kind=='PANELLING_STAIR_HALF' else 0,
+        slope=slope if kind=='PANELLING_STAIR_HALF' else 0)
+    if options.get('dado_enabled'):
+        geometry['wall_layout']['notes'].append('Additional dado rail: installation height is not set by this panelling calculation; confirm its position separately.')
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,
             'horizontal_strips':sum(count for key,count in strip_counts.items() if key in ('horizontal','top_and_bottom_horizontal','middle_horizontal')),
             'vertical_strips':strip_counts.get('vertical',0)}

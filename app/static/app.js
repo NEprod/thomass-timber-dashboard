@@ -45,6 +45,7 @@ for (const form of document.querySelectorAll('.item-form')) {
     show('.dado-toggle-fields', !dado && !coving && !cabinet);
     show('.rail-fields', !coving && !cabinet && (dado || form.elements.dado_enabled.checked));
     show('.dado-gap-fields', dado && finish.value !== 'Dado');
+    show('.dado-height-fields', dado && finish.value === 'Dado');
     show('.dado-layout-fields', dado && finish.value !== 'Dado');
     show('.dado-top-fields', finish.value.includes('Top & Bottom'));
     show('.dado-inner-fields', finish.value.includes('Double'));

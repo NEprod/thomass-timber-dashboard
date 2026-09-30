@@ -17,10 +17,10 @@ def calc(catalogue,kind='FULL',inputs=None,subtype='plain',options=None):
 
 def test_full_and_half_preserve_normal_geometry_and_counts(catalogue):
     full=calc(catalogue)
-    assert full['geometry']=={'square_width':625,'square_height':1050}
+    assert {k:full['geometry'][k] for k in ('square_width','square_height')}=={'square_width':625,'square_height':1050}
     assert (full['horizontal_strips'],full['vertical_strips'])==(4,5)
     half=calc(catalogue,'HALF',HALF)
-    assert half['geometry']=={'square_width':625,'square_height':800}
+    assert {k:half['geometry'][k] for k in ('square_width','square_height')}=={'square_width':625,'square_height':800}
     assert (half['horizontal_strips'],half['vertical_strips'])==(3,2)
     multi=calc(catalogue,'HALF',dict(HALF,vertical_squares=2))
     assert len(multi['groups']['middle_horizontal']['cuts'])==4

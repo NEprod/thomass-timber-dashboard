@@ -1,0 +1,14 @@
+{% if item.type in ['PANELLING_FULL','PANELLING_HALF','PANELLING_STAIR_HALF','DADO_STRAIGHT','DADO_STAIR'] %}
+{% set layout=item.result.geometry.get('wall_layout') %}
+<details class="cut-details wall-layout" id="wall-layout-{{ item.id }}" open>
+  <summary>Wall Layout</summary>
+  {% if layout %}
+  <div class="wall-plan-scroll">{{ render_wall_plan(layout,item.name,item.options.get('high_end','Right'))|safe }}</div>
+  <p class="hint">{{ layout.summary|join(' · ') }}{% if layout.stair %} · High end {{ item.options.get('high_end','Right') }}{% endif %}.</p>
+  <p class="hint">MDF = shaded members · bead / moulding = secondary outlines · dado = reference line.</p>
+  {% for note in layout.notes %}<p class="hint">{{ note }}</p>{% endfor %}
+  {% elif item.type.startswith('DADO_') and item.subtype=='Dado' %}
+  <p class="hint">Installation height is not yet set. Enter the finished-floor-to-dado-centreline height and save to show the dimensioned wall plan. Existing material demand is unchanged.</p>
+  {% else %}<p class="hint">Save &amp; recalculate this work item to show its wall layout.</p>{% endif %}
+</details>
+{% endif %}

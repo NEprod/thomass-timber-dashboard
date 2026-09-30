@@ -9,6 +9,7 @@ from .models import (db, User, Customer, Quote, Room, WorkItem, Material, Pricin
                      Consumable, QuoteConsumable, AdditionalCharge, Payment,
                      JobMaterialState, JobPurchase, OwnedStock, OwnedStockAllocation, now)
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
+from .services.wall_plans import render_wall_plan
 from .calculations.cabinet import PRESETS as CABINET_PRESETS
 from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
 from .calculations.packing import number, CalculationError
@@ -125,7 +126,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date)
+def shared():return dict(types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date,render_wall_plan=render_wall_plan)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
@@ -458,8 +459,12 @@ def quote_edit(quote_id):
                                 ['sides_enabled','bottom_enabled','top_rails','full_top','hinged_lid',
                                  'back_enabled','face_frame','worktop','sheet_rotation_allowed']})
                         else:
-                            item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset','start_corner','end_corner']}
+                            item.inputs={k:field(k,limit=50) for k in ['wall_length','height','horizontal_squares','vertical_squares','slat_width','lower_landing','upper_landing','slope_length','gap_width','bottom_squares','top_squares','bottom_zone_height','top_zone_height','inner_inset','start_corner','end_corner','dado_height']}
                             item.options={k:field(k) for k in ['mdf_id','bead_id','ledge_width','ledge_choice','dado_rail_id','dado_square_id']}
+                            if item.type in ('PANELLING_STAIR_HALF','DADO_STAIR'):
+                                high_end=field('high_end') or 'Right'
+                                if high_end not in ('Left','Right'):raise CalculationError('Choose Left or Right for the stair high end.')
+                                item.options['high_end']=high_end
                             item.options['dado_enabled']='dado_enabled' in request.form
                         recalculate_item(item,q.snapshot)
             else:abort(400,description='Unknown quote action.')

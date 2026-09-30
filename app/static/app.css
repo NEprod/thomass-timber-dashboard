@@ -57,3 +57,6 @@
 .sheet-part-list{margin:.7rem 0;padding-left:1.5rem;columns:2;column-gap:2rem}
 .sheet-part-list li{break-inside:avoid;margin:.25rem 0}
 @media(max-width:600px){.sheet-plan{padding:.7rem}.sheet-part-list{columns:1}}
+
+/* Wall plans retain true geometry; narrow views scroll inside the drawing only. */
+.wall-plan-scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}.wall-plan-svg{display:block;width:100%;height:auto;min-width:640px;max-height:720px}.wall-layout{min-width:0}.wall-layout .hint{overflow-wrap:anywhere}

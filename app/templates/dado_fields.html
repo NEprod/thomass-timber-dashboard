@@ -6,6 +6,7 @@
   <p class="hint">Each continuous finished run stays unjoined when compatible stock fits it. The room cut plan selects purchased stock and may use the remaining capacity for another compatible wall.</p>
 </div>
 <div class="dado-gap-fields fields">{{ input('gap_width','Gap width · mm (not MDF slat width)',item.inputs.get('gap_width',100),type='number',step='any') }}</div>
+<div class="dado-height-fields fields">{{ input('dado_height','Dado height from finished floor · mm (centreline)',item.inputs.get('dado_height',''),type='number',step='any') }}</div>
 <div class="dado-layout-fields">
   <div class="fields three">
     <label>Square dado stock<select name="dado_square_id"><option value="">Choose a square profile</option>{% for id,m in catalogue.items() if m.category=='dado' and 'square_dado' in m.get('uses',[]) and (m.active or id==item.options.get('dado_square_id')) %}<option value="{{ id }}" {{ 'selected' if id==item.options.get('dado_square_id') }}>{{ m.label }}</option>{% endfor %}</select></label>

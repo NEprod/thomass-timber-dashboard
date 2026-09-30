@@ -188,6 +188,18 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
         first = geometry['frames'][0]
         geometry.update(square_width=first['width_mm'], square_height=first['height_mm'])
     groups = cuts.finish(catalogue, kerf)
+    from .wall_layout import dado_layout
+    is_square = style == 'Dado Squares Bottom'
+    height_value = inputs.get('dado_height')
+    layout_height = (number(inputs.get('bottom_zone_height'), 'Clear layout height below rail') if is_square else
+                     number(height_value, 'Dado height from finished floor') if height_value not in (None, '') else None)
+    geometry['wall_layout'] = dado_layout(w, layout_height, geometry,
+        catalogue[geometry['rail_stock_id']]['width_mm'],
+        frames=geometry.get('frames', []) if is_square else None,
+        gap=float(inputs['gap_width']) if is_square else 0, stair=stair,
+        lower=lower if stair else 0, upper=upper if stair else 0, slope=slope if stair else 0,
+        square_profile_width=profile['width_mm'] if is_square else 0)
+    geometry['layout_height_mm'] = layout_height
     return {'valid': True, 'version': '1.1-dado-follow-up', 'geometry': geometry, 'groups': groups, 'warnings': warnings,
             'horizontal_strips': sum(len(pack(g['cuts'], catalogue[g['material_id']]['length_mm'], kerf)) for g in groups.values()), 'vertical_strips': 0}
 
