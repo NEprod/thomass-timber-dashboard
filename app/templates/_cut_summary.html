@@ -1,0 +1,11 @@
+<details class="cut-details cut-summary" open>
+  <summary>Cut Summary <span>Prepare lengths · stock assignments in Room Cut Plan</span></summary>
+  {% for family in cut_summary(item.result.groups) %}
+  <h4>{{ family.label }} · {{ catalogue[family.material_id].label }} · {{ '%g'|format(family.width_mm) }} mm wide</h4>
+  <ul class="sheet-part-list">
+    {% for row in family.rows %}
+    <li><strong>{{ row.quantity }} × {{ '%g'|format(row.prepare_length_mm) }}mm</strong> · {{ row.role }}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</details>

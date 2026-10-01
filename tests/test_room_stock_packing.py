@@ -211,7 +211,7 @@ def test_straight_square_dimensions_and_dashboard_acceptance(app, signed_in):
         assert item.result['geometry']['square_height'] == 800
     quote_page = signed_in.get(f'/quotes/{quote_id}').get_data(as_text=True)
     assert 'Square dimensions' in quote_page and '625.0 × 800.0' in quote_page
-    assert 'Finished cuts' in quote_page and 'Room cut plan' in quote_page
+    assert 'Cut Summary' in quote_page and 'Room cut plan' in quote_page
     assert 'Item stock preview' not in quote_page
     assert quote_page.count('<h4>Living room</h4>') == 1
     assert 'Material to purchase' in quote_page

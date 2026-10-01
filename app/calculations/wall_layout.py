@@ -68,7 +68,7 @@ def panelling_layout(kind, width, height, columns, rows, slat, geometry, *,
                                 geometry, lower, upper, slope, rise, bead, groups)
 
 
-def _offset_stair_route(width, lower, upper, rise, run, offset):
+def _offset_stair_route(width, lower, upper, rise, run, offset, *, clip=True):
     """Parallel inner edge, with adjacent straight lines meeting at their mitre.
 
     Offset is real material width perpendicular to each route segment. The
@@ -86,6 +86,10 @@ def _offset_stair_route(width, lower, upper, rise, run, offset):
              if not math.isclose(m1, m2)]
     if not knots:
         return [[0, lines[0][1]], [width, lines[0][0] * width + lines[0][1]]]
+    if not clip:
+        return ([[0, lines[0][1]]] +
+                [[x, lines[i][0] * x + lines[i][1]] for i, x in enumerate(knots)] +
+                [[width, lines[-1][0] * width + lines[-1][1]]])
     points = []
     for i, (m, b) in enumerate(lines):
         start = max(0, knots[i - 1] if i else 0)
@@ -109,6 +113,40 @@ def _between_routes(bottom, top, start, end):
     xs = sorted({start, end, *(x for route in (bottom, top) for x, _ in route if start < x < end)})
     return ([[x, _route_y(bottom, x)] for x in xs] +
             [[x, _route_y(top, x)] for x in reversed(xs)])
+
+
+def _clip_rail_to_wall(points, width):
+    """Clip a mitred polygon at wall ends, including very short landings."""
+    for bound, sign in ((0, 1), (width, -1)):
+        output = []
+        for a, b in zip(points, points[1:] + points[:1]):
+            inside_a, inside_b = sign * (a[0] - bound) >= 0, sign * (b[0] - bound) >= 0
+            if inside_a:
+                output.append(a)
+            if inside_a != inside_b:
+                fraction = (bound - a[0]) / (b[0] - a[0])
+                output.append([bound, a[1] + fraction * (b[1] - a[1])])
+        points = output
+    return points
+
+
+def _mitred_rail_sections(width, lower, upper, rise, run, bottom_offset, top_offset, base):
+    """Pair existing parallel-route vertices: adjacent rails share one seam.
+
+    Keep the uncut bend intersections until polygons are clipped at wall ends;
+    cutting both edges at one x would replace the mitre with a vertical butt.
+    """
+    bottom, top = ([[x, y + base] for x, y in _offset_stair_route(
+        width, lower, upper, rise, run, offset, clip=False)]
+        for offset in (bottom_offset, top_offset))
+    names = (['Lower landing'] if lower else []) + ['Slope'] + (['Upper landing'] if upper else [])
+    # With a level measured route there is no change of direction to mitre.
+    if math.isclose(rise, 0):
+        return {name: _between_routes(bottom, top, start, end)
+                for name, start, end in [('Lower landing', 0, lower),
+                    ('Slope', lower, width - upper), ('Upper landing', width - upper, width)] if end > start}
+    return {name: _clip_rail_to_wall([bottom[i], bottom[i + 1], top[i + 1], top[i]], width)
+            for i, name in enumerate(names)}
 
 
 def _prepare_runs(groups, group):
@@ -216,10 +254,12 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
                   ('Upper landing', width - upper, width)]
     for index, (bottom, top) in enumerate(rails):
         name = 'Bottom' if index == 0 else 'Top' if index == rows else f'Middle {index}'
+        sections = _mitred_rail_sections(width, lower, upper, rise, run,
+            -slat * index / rows, slat * (1 - index / rows), height * index / rows)
         for section, start, end in role_names:
             if end <= start:
                 continue
-            _shape(plan, 'mdf', f'{name} rail · {section}', _between_routes(bottom, top, start, end))
+            _shape(plan, 'mdf', f'{name} rail · {section}', sections[section])
             if index not in (0, rows):
                 continue
             role = 'Slope' if section == 'Slope' else f'{name} ({section.title()})'

@@ -10,6 +10,7 @@ from .models import (db, User, Customer, Quote, Room, WorkItem, Material, Pricin
                      JobMaterialState, JobPurchase, OwnedStock, OwnedStockAllocation, now)
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
 from .services.wall_plans import render_wall_plan
+from .services.cut_summaries import cut_summary
 from .services.stock_plans import prepare_stock_views, render_sheet_rip_plan, render_linear_stock_plan
 from .calculations.cabinet import PRESETS as CABINET_PRESETS
 from .calculations.dado import USES, rail_choices, SUPPORTED_DADO_STYLES, dado_summary
@@ -127,7 +128,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date,render_wall_plan=render_wall_plan,prepare_stock_views=prepare_stock_views,render_sheet_rip_plan=render_sheet_rip_plan,render_linear_stock_plan=render_linear_stock_plan)
+def shared():return dict(cut_summary=cut_summary,types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date,render_wall_plan=render_wall_plan,prepare_stock_views=prepare_stock_views,render_sheet_rip_plan=render_sheet_rip_plan,render_linear_stock_plan=render_linear_stock_plan)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
