@@ -1,4 +1,6 @@
 from copy import deepcopy
+import math
+import re
 from xml.etree import ElementTree as ET
 
 import pytest
@@ -13,6 +15,16 @@ from test_calculations import FULL, HALF, STAIR, OPTIONS
 
 def layout(result):
     return result['geometry']['wall_layout']
+
+
+def assert_uniform_svg_scale(root):
+    # The viewBox maps into any constrained viewport using one 'meet' scale;
+    # the only axis transforms allowed are equal-magnitude orientation flips.
+    assert root.attrib['preserveAspectRatio'] == 'xMidYMid meet'
+    for node in root.iter():
+        for values in re.findall(r'scale\(([^)]+)\)', node.attrib.get('transform', '')):
+            factors = [float(v) for v in values.replace(',', ' ').split()]
+            assert len(factors) == 1 or abs(factors[0]) == abs(factors[1])
 
 
 @pytest.mark.parametrize(('kind', 'inputs', 'members', 'openings'), [
@@ -30,10 +42,124 @@ def test_straight_panelling_geometry_counts_dimensions_and_safe_svg(catalogue, k
     assert first['points'][1][0] - first['points'][0][0] == result['geometry']['square_width']
     assert plan == layout(calculate(kind, 'bead', inputs, dict(OPTIONS, bead_id='bead-glass_bead-9x9'), catalogue, 3))
     svg = render_wall_plan(plan, '<script>alert("unsafe")</script> & Wall')
-    ET.fromstring(svg)
+    root = ET.fromstring(svg)
+    assert_uniform_svg_scale(root)
+    wall = next(node for node in root.iter() if node.attrib.get('data-kind') == 'wall')
+    points = [tuple(map(float, p.split(','))) for p in wall.attrib['points'].split()]
+    assert points[1][0] - points[0][0] == inputs['wall_length']
+    assert points[2][1] - points[1][1] == inputs['height']
     assert '<script>' not in svg and '&lt;script&gt;' in svg
     assert 'Wall 3000 mm' in svg and 'Opening 625 mm' in svg
     assert '<title>' in svg and '<desc>' in svg and 'role="img"' in svg
+
+
+@pytest.mark.parametrize('high_end', ['Right', 'Left'])
+def test_rendered_stair_preserves_4000_slope_2500_run_proportions(catalogue, high_end):
+    inputs = dict(STAIR, wall_length=3000, slope_length=4000)
+    result = calculate('PANELLING_STAIR_HALF', 'plain', inputs, OPTIONS, catalogue, 3)
+    assert result['geometry']['horizontal_run'] == 2500
+    assert result['geometry']['slope_angle'] == 51.32
+    plan = layout(result)
+    before = deepcopy(plan)
+    root = ET.fromstring(render_wall_plan(plan, 'Proportion regression', high_end))
+    assert plan == before
+    assert_uniform_svg_scale(root)
+    wall = next(node for node in root.iter() if node.attrib.get('data-kind') == 'wall')
+    points = [tuple(map(float, p.split(','))) for p in wall.attrib['points'].split()]
+    run = points[2][0] - points[1][0]
+    rise = points[2][1] - points[1][1]
+    expected_rise = math.sqrt(4000 ** 2 - 2500 ** 2)
+    assert run == 2500
+    assert rise == pytest.approx(expected_rise, abs=0.01)
+    assert rise / run == pytest.approx(expected_rise / 2500, rel=1e-6)
+    assert math.degrees(math.atan2(rise, run)) == pytest.approx(51.32, abs=0.01)
+    # Include height-limited desktop and width-limited narrow viewports. SVG meet
+    # scales both coordinate axes together even when CSS caps the display height.
+    _, _, view_width, view_height = map(float, root.attrib['viewBox'].split())
+    for available_width, available_height in [(1200, 720), (800, 720), (390, 844)]:
+        scale = min(available_width / view_width, available_height / view_height)
+        assert (rise * scale) / (run * scale) == pytest.approx(expected_rise / 2500, rel=1e-6)
+
+
+REPRESENTATIVE_STAIR = dict(STAIR, wall_length=4500, lower_landing=1000,
+                            upper_landing=1000, slope_length=4000)
+
+
+def boundary_y(boundary, x):
+    for (a, ya), (b, yb) in zip(boundary, boundary[1:]):
+        if a <= x <= b and b > a:
+            return ya + (yb - ya) * (x - a) / (b - a)
+    raise AssertionError(f'No rail boundary at {x}')
+
+
+@pytest.mark.parametrize('values', [STAIR, REPRESENTATIVE_STAIR,
+                                   dict(STAIR, lower_landing=400, upper_landing=400),
+                                   dict(STAIR, lower_landing=0, upper_landing=0, slope_length=2000),
+                                   dict(REPRESENTATIVE_STAIR, vertical_squares=2)])
+def test_installed_stair_envelope_true_rail_width_and_batten_intersections(catalogue, values):
+    result = calculate('PANELLING_STAIR_HALF', 'plain', values, OPTIONS, catalogue, 3)
+    plan = layout(result)
+    boundaries = plan['boundaries']
+    assert plan['installed_panel_height_mm'] == values['height']
+    assert plan['height_mm'] == pytest.approx(math.sqrt(values['slope_length'] ** 2 - result['geometry']['horizontal_run'] ** 2) + values['height'])
+    for x in (0, values['lower_landing'], values['wall_length'] - values['upper_landing'], values['wall_length']):
+        assert boundary_y(boundaries['top_outer'], x) - boundary_y(boundaries['bottom_outer'], x) == pytest.approx(values['height'])
+    for name in ('Top', 'Bottom'):
+        rails = [e for e in plan['elements'] if e['kind'] == 'mdf' and e['label'].startswith(name + ' rail')]
+        for left, right in zip(rails, rails[1:]):
+            half = len(left['points']) // 2
+            assert left['points'][half - 1] == pytest.approx(right['points'][0])
+            assert left['points'][half] == pytest.approx(right['points'][-1])
+    cosine = result['geometry']['horizontal_run'] / values['slope_length']
+    x = values['lower_landing'] + result['geometry']['horizontal_run'] / 2
+    assert (boundary_y(boundaries['bottom_inner'], x) - boundary_y(boundaries['bottom_outer'], x)) * cosine == pytest.approx(values['slat_width'])
+    assert (boundary_y(boundaries['top_outer'], x) - boundary_y(boundaries['top_inner'], x)) * cosine == pytest.approx(values['slat_width'])
+    for element in plan['elements']:
+        if element['kind'] == 'mdf' and element['label'].startswith('Vertical batten'):
+            half = len(element['points']) // 2
+            for x, y in element['points'][:half]:
+                assert y == pytest.approx(boundary_y(boundaries['bottom_inner'], x))
+            for x, y in element['points'][half:]:
+                assert y == pytest.approx(boundary_y(boundaries['top_inner'], x))
+            # Both ends of each batten side share x: it remains vertical.
+            assert element['points'][0][0] == element['points'][-1][0]
+            assert element['points'][half - 1][0] == element['points'][half][0]
+
+
+def test_installed_prepare_grouped_parts_transitions_and_landing_allowances(catalogue, seed_data):
+    result = calculate('PANELLING_STAIR_HALF', 'bead', REPRESENTATIVE_STAIR,
+                       dict(OPTIONS, bead_id='bead-glass_bead-9x9'), catalogue, 3)
+    plan = layout(result)
+    verticals = [p for p in plan['parts'] if p['component'] == 'Vertical batten']
+    angled = next(p for p in verticals if p['installed_length_mm'] == 680)
+    assert angled['quantity'] == 3 and angled['prepare_length_mm'] == 1280
+    assert angled['trim_to_fit'] and not angled['provisional']
+    assert all(p['prepare_length_mm'] >= p['installed_length_mm'] for p in verticals if not p['provisional'])
+    assert [c['length_mm'] for c in result['groups']['vertical']['cuts']] == [800,1280,1280,1280,800]
+    parts = {label: p for p in plan['parts'] for label in p['labels']}
+    assert (parts['Top rail · Lower landing']['installed_length_mm'], parts['Top rail · Lower landing']['prepare_length_mm']) == (1000,970)
+    assert (parts['Top rail · Upper landing']['installed_length_mm'], parts['Top rail · Upper landing']['prepare_length_mm']) == (1000,1030)
+    assert parts['Bottom rail · Lower landing']['prepare_length_mm'] == 1000
+    assert parts['Bottom rail · Upper landing']['prepare_length_mm'] == 1000
+    slope = parts['Top rail · Slope']
+    assert slope['quantity'] == 2 and slope['installed_length_mm'] == slope['prepare_length_mm'] == 4000
+    assert len(slope['cut_ids']) == 4  # Original 2440 + 1560 joined demands per rail.
+    openings = [p for p in plan['parts'] if p['component'] == 'Panel opening']
+    exact = next(p for p in openings if not p['provisional'])
+    assert exact['installed_dimensions'] == dict(width_mm=1000, height_mm=680)
+    assert exact['prepare_dimensions'] == dict(width_mm=1600, height_mm=1280)
+    assert result['geometry']['square_width'] == 1000 and result['geometry']['square_height'] == 800
+    transitions = [p for p in plan['parts'] if p['provisional']]
+    assert transitions and all(p['installed_length_mm'] is None and p['installed_dimensions'] is None for p in transitions)
+    assert any(p['prepare_length_mm'] is not None and p['component'].startswith('Bead') for p in transitions)
+    svg = render_wall_plan(plan, 'Installed wall')
+    assert 'Installed height 1000 mm' in svg and 'Trim to fit on site' in svg and 'stroke-dasharray' in svg
+    # Orientation is renderer-only: both canonical paths, stock and price match.
+    left = calculate('PANELLING_STAIR_HALF', 'bead', REPRESENTATIVE_STAIR,
+                     dict(OPTIONS, bead_id='bead-glass_bead-9x9', high_end='Left'), catalogue, 3)
+    assert left == result
+    assert aggregate([left], catalogue, seed_data['pricing']) == aggregate([result], catalogue, seed_data['pricing'])
+    assert 'translate(4500 0) scale(-1 1)' in render_wall_plan(plan, 'Installed wall', 'Left')
 
 
 def dado(catalogue, style='Dado', **values):
@@ -145,3 +271,17 @@ def test_stair_transition_bead_allowances_remain_golden(catalogue):
     assert sorted(c['length_mm'] for c in first) == [120,120,180,180,960,960]
     assert all(c['angle_information']['stock_allowance'] for c in first)
     assert (result['horizontal_strips'],result['vertical_strips']) == (2,3)
+
+
+def test_current_quote_renders_and_reopens_installed_prepare_parts(app, signed_in):
+    qid = create_quote(signed_in, app)
+    rid = add_room(signed_in, app, qid, 'Installed stair room')
+    iid = add_item(signed_in, app, qid, rid, 'Installed stair', 'PANELLING_STAIR_HALF', REPRESENTATIVE_STAIR)
+    for _ in range(2):
+        page = signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
+        assert 'Installed layout &amp; workshop preparation' in page
+        assert '3 × Vertical batten' in page and '680 mm' in page and '1280 mm' in page
+        assert 'Installed height 1000 mm' in page and 'Installed:\n        site-fit' in page
+    with app.app_context():
+        parts = db.session.get(WorkItem, iid).result['geometry']['wall_layout']['parts']
+        assert next(p for p in parts if p['installed_length_mm'] == 680)['prepare_length_mm'] == 1280

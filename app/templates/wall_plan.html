@@ -7,6 +7,28 @@
   <p class="hint">{{ layout.summary|join(' · ') }}{% if layout.stair %} · High end {{ item.options.get('high_end','Right') }}{% endif %}.</p>
   <p class="hint">MDF = shaded members · bead / moulding = secondary outlines · dado = reference line.</p>
   {% for note in layout.notes %}<p class="hint">{{ note }}</p>{% endfor %}
+  {% if layout.get('parts') %}
+  <h4>Installed layout &amp; workshop preparation</h4>
+  <ul class="sheet-part-list wall-part-list">
+    {% for part in layout.parts %}
+    <li><strong>{{ part.quantity }} × {{ part.component }}</strong>
+      <small>{{ part.labels|join(' · ') }}</small>
+      <span>Installed:
+        {% if part.provisional %}site-fit
+        {% elif part.installed_dimensions %}{{ '%g'|format(part.installed_dimensions.width_mm) }} × {{ '%g'|format(part.installed_dimensions.height_mm) }} mm
+        {% elif part.installed_length_mm is not none %}{{ '%g'|format(part.installed_length_mm) }} mm
+        {% else %}site-fit{% endif %}
+        · Prepare:
+        {% if part.prepare_dimensions %}{{ '%g'|format(part.prepare_dimensions.width_mm) }} × {{ '%g'|format(part.prepare_dimensions.height_mm) }} mm
+        {% elif part.prepare_length_mm is not none %}{{ '%g'|format(part.prepare_length_mm) }} mm
+        {% else %}see current cut list{% endif %}
+      </span>
+      {% if part.trim_to_fit %}<small>Trim to fit on site</small>{% endif %}
+      {% for note in part.notes %}<small>{{ note }}</small>{% endfor %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   {% elif item.type.startswith('DADO_') and item.subtype=='Dado' %}
   <p class="hint">Installation height is not yet set. Enter the finished-floor-to-dado-centreline height and save to show the dimensioned wall plan. Existing material demand is unchanged.</p>
   {% else %}<p class="hint">Save &amp; recalculate this work item to show its wall layout.</p>{% endif %}

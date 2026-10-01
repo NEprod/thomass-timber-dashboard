@@ -136,7 +136,7 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
     geometry['wall_layout'] = panelling_layout(kind, w, h, n, r, s, geometry,
         bead='bead' in subtype, lower=lower if kind=='PANELLING_STAIR_HALF' else 0,
         upper=upper if kind=='PANELLING_STAIR_HALF' else 0,
-        slope=slope if kind=='PANELLING_STAIR_HALF' else 0)
+        slope=slope if kind=='PANELLING_STAIR_HALF' else 0, groups=groups)
     if options.get('dado_enabled'):
         geometry['wall_layout']['notes'].append('Additional dado rail: installation height is not set by this panelling calculation; confirm its position separately.')
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,

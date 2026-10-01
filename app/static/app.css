@@ -60,3 +60,5 @@
 
 /* Wall plans retain true geometry; narrow views scroll inside the drawing only. */
 .wall-plan-scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}.wall-plan-svg{display:block;width:100%;height:auto;min-width:640px;max-height:720px}.wall-layout{min-width:0}.wall-layout .hint{overflow-wrap:anywhere}
+
+.wall-part-list li{overflow-wrap:anywhere}
