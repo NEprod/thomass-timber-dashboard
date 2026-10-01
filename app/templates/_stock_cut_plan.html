@@ -1,0 +1,7 @@
+<div class="sheet-plan">
+  <div class="strip-heading"><strong>{{ title }}</strong><span>{{ plan.stock_length_mm|round(2) }} mm stock · kerf {{ plan.kerf_loss_mm|round(2) }} mm · remainder {{ plan.remainder_mm|round(2) }} mm</span></div>
+  <div class="sheet-plan-scroll">{{ render_linear_stock_plan(plan, title)|safe }}</div>
+  <ol class="sheet-part-list">{% for segment in plan.segments %}{% set cut=segment.source %}
+    <li><strong>{{ cut.wall_name }} / {{ cut.label }}</strong> · Prepare {{ cut.length_mm|round(2) }} mm{% if segment.installed_length_mm is not none %} · Installed {{ segment.installed_length_mm|round(2) }} mm{% endif %}</li>
+  {% endfor %}</ol>
+</div>
