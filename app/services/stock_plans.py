@@ -5,7 +5,7 @@ and every sheet/strip/cut retains its original assignment and source ID.
 """
 from collections import Counter
 from html import escape
-from ..calculations.preparation import stock_mode, prepared_strip_count
+from ..calculations.preparation import stock_mode, prepared_strip_count, sheet_cut_operation_count
 
 
 def _segments(cuts, kerf_loss, dimension='length_mm'):
@@ -45,7 +45,8 @@ def prepare_stock_views(stocks, rooms=()):
         key = stock_key(stock)
         numbers[key] += 1
         view = dict(source=stock, mode=mode, number=numbers[key], total=totals[key], strips=[],
-                    prepared_strip_count=prepared_strip_count([stock]))
+                    prepared_strip_count=prepared_strip_count([stock]),
+                    sheet_cut_operations=sheet_cut_operation_count([stock]))
         if mode == 'sheet':
             views.append(view)
             continue

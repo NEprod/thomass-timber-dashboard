@@ -9,7 +9,7 @@ from copy import deepcopy
 from ..calculations.packing import CalculationError, number
 from ..calculations.pricing import money
 from ..calculations.room_stock import pack_rooms
-from ..calculations.preparation import prepared_strip_count
+from ..calculations.preparation import prepared_strip_count, sheet_cut_operation_count
 
 
 def strip_payload(product, width, length, quantity):
@@ -79,12 +79,14 @@ def with_dimensional_extras(quote, exact, overrides=None):
     cost = money(sum(row['cost'] for row in materials))
     delta = money(cost - exact['stock_material_cost'])
     strips = prepared_strip_count(stocks)
-    cut_cost = money(strips * pricing['cut_cost_per_strip'])
+    sheet_operations = sheet_cut_operation_count(stocks)
+    cut_cost = money((strips + sheet_operations) * pricing['cut_cost_per_strip'])
     cut_delta = money(cut_cost - exact['cut_cost'])
     counts = stock_counts(exact['room_stocks'])
     result.update(materials=materials, room_stocks=stocks, stock_material_cost=cost,
                   material_cost=money(exact['material_cost'] + delta + cut_delta), dimensional_extra_cost=delta,
                   total_prepared_strips=strips, strip_cut_rate=pricing['cut_cost_per_strip'], cut_cost=cut_cost,
+                  sheet_cut_operations=sheet_operations,
                   exact_stock_counts=[dict(room_id=r, material_id=m, quantity=q)
                                       for (r, m), q in sorted(counts.items())])
     return result

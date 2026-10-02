@@ -4,7 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import math
 from .packing import pack, number
 from .materials import kerf_for
-from .preparation import prepared_strip_count
+from .preparation import prepared_strip_count, sheet_cut_operation_count
 
 def money(value):
     return float(Decimal(str(value)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
@@ -95,10 +95,12 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
             catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10),
             sheet_trim=config.get('sheet_edge_trim',10), sheet_kerf=config.get('sheet_kerf',3))
     total_prepared_strips = prepared_strip_count(preparation_stocks)
-    cut_cost = money(total_prepared_strips * config['cut_cost_per_strip'])
+    sheet_cut_operations = sheet_cut_operation_count(preparation_stocks)
+    cut_cost = money((total_prepared_strips + sheet_cut_operations) * config['cut_cost_per_strip'])
     material_cost = money(cost + mastic_cost + cut_cost + delivery)
     return dict(valid=valid,materials=list(materials.values()),room_stocks=room_stocks,required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),required_coving_m=round(coving_m,6),
                 stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,
                 total_prepared_strips=total_prepared_strips,strip_cut_rate=config['cut_cost_per_strip'],delivery_cost=delivery,
+                sheet_cut_operations=sheet_cut_operations,
                 material_cost=material_cost,labour_cost=labour,time_allowance=time_allowance,take_home=take_home,
                 final_price=math.ceil(money(material_cost+take_home)/10)*10 if valid else None)

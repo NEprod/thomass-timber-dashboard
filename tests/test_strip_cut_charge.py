@@ -117,5 +117,6 @@ def test_nested_cabinet_parts_are_not_prepared_strips(catalogue, seed_data):
     rooms = [dict(id=1, name='Cabinet', items=[dict(id='1', name='Cabinet', result=result)])]
     priced = aggregate([result], catalogue, seed_data['pricing'], rooms=rooms)
     assert priced['room_stocks'] and any(s.get('packing_kind') == 'sheet' for s in priced['room_stocks'])
-    assert priced['total_prepared_strips'] == 0 and priced['cut_cost'] == 0
+    assert priced['total_prepared_strips'] == 0
+    assert priced['cut_cost'] == priced['sheet_cut_operations'] * seed_data['pricing']['cut_cost_per_strip']
     assert sum(v['prepared_strip_count'] for v in prepare_stock_views(priced['room_stocks'])) == 0

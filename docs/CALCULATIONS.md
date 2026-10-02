@@ -103,3 +103,14 @@ only. Spare strips fitting current sheets consume theoretical remainder:
 preview is incremental to current accepted extras; combined selections are
 repacked together. Accepted quantities offset the recommendation target so they
 cannot be repeatedly offered as missing. No automatic contingency is added.
+
+## Cabinet sheet-cut pricing
+
+Sheet-nesting cutting is the number of recorded guillotine split operations
+(`sheet_cut_lines`) multiplied by the saved `cut_cost_per_strip` rate. Each
+split appears once, including a cut shared by multiple parts. This is added
+to prepared MDF strip cutting; nested parts themselves are never charged as
+strips. Linear stock, assembly and installation are excluded. Labour and
+raw-stock packing/prices remain separate. The optimiser's edge-trim border is
+only a planning/squaring allowance, not a chargeable cut; no border operations
+are added. Dimensional-extra repacking retains the recorded sheet-cut charge.
