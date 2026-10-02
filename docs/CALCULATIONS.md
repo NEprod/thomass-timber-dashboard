@@ -24,19 +24,29 @@ Characterization tests execute selected historical functions from source in memo
 
 Straight square width = `(wall_length − (horizontal_count + 1) × slat_width) / horizontal_count`. Height uses the equivalent vertical expression. Half-wall verticals span `panel_height − 2 × slat_width`; intermediate horizontals fill the square width. Full-wall verticals span the complete wall height. Historical two-decimal geometry rounding is retained.
 
-Stair run = wall length minus lower and upper landings. Slope angle uses `acos(run / measured_slope_length)`. Historical angled-square width **and height** are divided by the cosine. Opening positions determine flat, angled and transition columns. Vertical-piece selection and middle-piece handling preserve the historical branch rules.
+Stair run = wall length minus lower and upper landings. Slope angle uses `acos(run / measured_slope_length)`. Historical angled-square width **and height** are divided by the cosine. Opening positions determine flat, angled and transition columns. These recovered fields remain calculation references; exact MDF and opening-profile cut demand comes from the canonical installed polygons described below.
 
 Golden fixture: wall 1500, panel 1000, landings 250/250, slope 1200, grid 4×1, slat 100, stock 2440, kerf 3 mm:
 
 - Run 1000; slope angle 33.56°; slope mitre 16.78°.
-- Flat opening 250×800; angled opening 300×960 mm.
+- Recovered reference fields: flat 250×800; angled 300×960 mm. These are not the exact installed opening dimensions.
 - Top/bottom displayed settings 61.78° / 28.22°.
 - Transition → angled → angled → transition; counts 0 flat, 2 angled, 2 transition.
-- Two horizontal strips and three vertical strips.
+- Two horizontal-group strips and two vertical-group strips under the exact base-cut policy; the room packer remains the authoritative combined purchase plan.
 
-Workshop allowance is explicit: top upper landing **+30 mm**, top lower landing **−30 mm clamped to zero**. Bottom landings and slope lengths are unchanged. Zero-length clamped pieces are not purchased. A split cut carries the allowance metadata once, on its first piece. These are preserved workshop instructions, not newly inferred geometry.
+### Exact stair base cuts (v1.5.4)
 
-Acute and obtuse values are included angles; top/bottom and slope mitre retain historical displayed cut-setting terminology. Physical saw orientation and workshop allowance need later verification. The UI does not claim these are universal saw settings.
+Installed polygons are derived from the measured route, perpendicular material widths and shared mitre intersections. The minimum blank length is the polygon's axial long-point span, not its centreline, longest diagonal, historical cosine-expanded height or an arbitrary fitting allowance. The existing six-decimal cut/packing precision is retained.
+
+For exact MDF landing/slope rails and vertical battens, this replaces the old +30/−30 landing rule and inflated batten demand. Exact straight intermediate members are clipped to their column endpoints. Intermediate members crossing a bend remain site-fit until separate member/joint endpoints are modelled. Existing automatic-join permissions are preserved; over-stock vertical/middle members are rejected.
+
+A known stair Dado profile width is centred on the measured Dado route and offset to physical edges with shared mitre seams. Its long-point extent determines the base cut before the existing stock selection and splitting. Absolute installation height does not affect this length.
+
+Opening bead and square Dado use the existing straight-frame convention: outside profile edge on the opening boundary, zero extra inset, catalogue width extending inward. Adjacent offset lines intersect at shared mitre seams. All six pieces of each representative transition have exact physical polygons and long-point base cuts. Old conservative provisions are retained only as audit comparison metadata, never as demand. The configured 9mm bead and 21mm square profile fit the representative acute transition. A 45mm square profile does not: the short segment's mitred inner edge collapses, so the calculator rejects that physical fit rather than fabricating a shape. The continuous centred 45mm Dado route remains valid.
+
+The 4500mm wall / 1000mm panel / 4000mm slope / 2500mm run / 100mm rail fixture yields a 1048.038446mm lower top landing blank, 4048.038446mm slope blanks and 804.899960mm sloped vertical blanks. Room packing, charge and procurement use these requirements. No spare stock or hidden contingency is added. Recalculation uses the new policy; merely reopening a saved quote does not silently reprice it.
+
+Acute and obtuse values are included angles; top/bottom and slope mitre retain historical displayed cut-setting terminology. Physical saw orientation still needs verification. Truly unmodelled members remain marked site-fit; exact profiles do not. The UI does not claim these are universal saw settings.
 
 ## Deliberate, tested corrections
 
@@ -59,7 +69,7 @@ Catalogue and pricing are JSON snapshots on each quote, independent of editable 
 ## Supported boundaries
 
 - Full and half straight bead preserve perimeter behaviour; half ledge with bead also includes the under-ledge run.
-- Milestone 3 extends stair bead across rows and ledge combinations. Flat/angled pieces use recovered opening dimensions. Transition bead uses user-authorized conservative, bend-segmented stock allowances, explicitly not exact finished cuts. See `MILESTONE_3_DADO_STAIR.md`.
+- Stair opening bead now uses exact catalogue-width mitred polygons under the v1.5.4 policy above, replacing Milestone 3's conservative transition allowances. Straight bead and under-ledge behaviour remain unchanged.
 - Ledge uses an explicit confirmed rip width. Historical 2×/3× choices remain raw options; selecting one suggests a width but does not establish a physical interpretation. Stair ledge run is lower landing + measured slope + upper landing.
 - Historic MDF, bead and dado catalogue data are seeded once. Dado style vocabulary and 45/70 mm preferred 3000 mm stock metadata are retained; Milestone 3 now generates dado cuts using explicit product-use permissions and new documented layout rules.
 - Customer edits update the reusable customer record. Quote price snapshots are implemented; immutable customer/address revisions are not.

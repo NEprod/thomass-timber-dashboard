@@ -15,5 +15,5 @@
   </div>
   <div class="dado-top-fields fields">{{ input('top_squares','Top horizontal squares',item.inputs.get('top_squares',4),type='number',step='1') }}{{ input('top_zone_height','Clear layout height above rail · mm',item.inputs.get('top_zone_height',''),type='number',step='any') }}</div>
   <div class="dado-inner-fields fields">{{ input('inner_inset','Nested frame outer-edge inset · mm',item.inputs.get('inner_inset',''),type='number',step='any') }}</div>
-  <p class="hint">Enter the clear zone below the rail, excluding the rail and skirting. Gap is reserved at both vertical edges and between frames. Dimensions describe the outside/long-point rectangle; stair transitions are labelled trim-to-fit provisions.</p>
+  <p class="hint">Enter the clear zone below the rail, excluding the rail and skirting. Gap is reserved at both vertical edges and between frames. Profile outside edges follow the opening boundary; stair base cuts use exact mitred long points. The selected profile must fit the opening.</p>
 </div>

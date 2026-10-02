@@ -67,6 +67,7 @@ def prepare_stock_views(stocks, rooms=()):
         for plan in view['strips'] or [view]:
             for segment in plan['segments']:
                 segment['installed_length_mm'] = installed.get(segment['source']['id'])
+                segment['installed_reference'] = 'Installed centreline' if segment['source'].get('requirement_status')=='EXACT' or stock['category']!='bead' else 'Installed opening-boundary path'
         views.append(view)
     return views
 
@@ -114,7 +115,8 @@ def render_linear_stock_plan(plan, title):
     out.append(_rect('stock', 0, 0, length, bar_height, f'{length:g} mm stock'))
     for index, segment in enumerate(plan['segments'], 1):
         x, size, cut = segment['position_mm'], segment['size_mm'], segment['source']
-        out.append(_rect('cut', x, 0, size, bar_height, f"{cut.get('wall_name', '')} / {cut['label']} — Prepare {size:g} mm"))
+        term='Base cut' if cut.get('requirement_status')=='EXACT' else 'Site-fit Prepare' if cut.get('requirement_status')=='PROVISIONAL' else 'Prepare'
+        out.append(_rect('cut', x, 0, size, bar_height, f"{cut.get('wall_name', '')} / {cut['label']} — {term} {size:g} mm"))
         if size > text_size * 3:
             out.append(f'<text x="{x + size / 2:g}" y="{bar_height / 2:g}" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="{text_size:g}">{index} · {size:g}</text>')
     for gap in plan['kerfs']:

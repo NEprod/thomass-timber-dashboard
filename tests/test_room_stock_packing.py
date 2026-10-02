@@ -1,4 +1,5 @@
 from copy import deepcopy
+import pytest
 
 from app.calculations.sections import calculate
 from app.calculations.pricing import aggregate
@@ -117,7 +118,7 @@ def test_rooms_remain_separate_and_stair_members_choose_practical_stock(catalogu
     stocks = dado_stocks(result)
     assert [stock['stock_length_mm'] for stock in stocks] == [4500]
     cuts = [cut for stock in stocks for cut in stock['cuts']]
-    assert sorted(cut['length_mm'] for cut in cuts) == [750, 750, 2900]
+    assert sorted(cut['length_mm'] for cut in cuts) == pytest.approx([756.123724,756.123724,2912.247449])
     assert {cut['role'] for cut in cuts} == {'Lower landing dado', 'Slope dado', 'Upper landing dado'}
     assert sum(stock['kerf_loss_mm'] for stock in stocks) == 6
     available = {key: value for key, value in catalogue.items()

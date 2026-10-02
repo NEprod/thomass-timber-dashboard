@@ -34,18 +34,18 @@ def test_stair_golden_geometry():
     assert [c['type'] for c in g['columns']]==['transition','angled','angled','transition']
     assert g['counts']=={'flat':0,'angled':2,'transition':2}
 
-def test_stair_golden_packing_labels_allowance(catalogue):
+def test_stair_golden_packing_labels_exact_base_cuts(catalogue):
     result=calc(catalogue,'STAIR_HALF',STAIR)
-    assert (result['horizontal_strips'],result['vertical_strips'])==(2,3)
+    assert (result['horizontal_strips'],result['vertical_strips'])==(2,2)
     horizontal=result['groups']['top_and_bottom_horizontal']
     _, stocks=pack_rooms([dict(id=1,name='Stair room',items=[dict(id='wall-17',name='Stair wall',result=result)])],catalogue,3)
     room_cuts=[cut for stock in stocks if stock['category']=='mdf' for rip in stock['cuts'] for cut in rip['finished_cuts']]
     assert sorted(c['id'] for c in room_cuts)==sorted(c['id'] for group in result['groups'].values() for c in group['cuts'])
     assert all('strips' not in group for group in result['groups'].values())
     cuts={c['role']:c for c in horizontal['cuts']}
-    assert cuts['Top (Upper Landing)']['allowance_mm']==30
-    assert cuts['Top (Lower Landing)']['allowance_mm']==-30
-    assert cuts['Slope']['length_mm']==1200
+    assert cuts['Top (Upper Landing)']['allowance_mm']==0
+    assert cuts['Top (Lower Landing)']['allowance_mm']==0
+    assert cuts['Slope']['length_mm']==pytest.approx(1230.151134)
     for c in room_cuts:
         if c['id'] in {cut['id'] for cut in horizontal['cuts']}:
             assert c['length_mm']==cuts[c['role']]['length_mm']
@@ -53,7 +53,7 @@ def test_stair_golden_packing_labels_allowance(catalogue):
             assert c['angle_information']['slope_mitre']==16.78
     short=calc(catalogue,'STAIR_HALF',dict(STAIR,lower_landing=20,slope_length=1500))
     top=[c for c in short['groups']['top_and_bottom_horizontal']['cuts'] if c['role']=='Top (Lower Landing)']
-    assert top==[]  # historical clamp to zero, no zero-length purchase
+    assert top and top[0]['length_mm']>20  # Exact geometry replaces the old zero clamp.
 
 def test_bead_ledge_and_stair_supported_boundary(catalogue):
     bead_id=next(k for k,m in catalogue.items() if m['category']=='bead' and m['thickness_mm']==9)

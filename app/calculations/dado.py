@@ -111,6 +111,15 @@ def rail(cuts, inputs, options, catalogue, *, geometry=None):
         cuts.add(product, 'Continuous dado rail', number(inputs.get('wall_length'), 'Wall length'),
                  angles={'dado_role':'rail'}, stock_choices=choices)
     else:
+        from .wall_layout import stair_profile_members
+        from .installed_geometry import _member
+        import math
+        slope=float(inputs['slope_length']); run=geometry['horizontal_run']
+        rise=math.sqrt(max(0,slope*slope-run*run))
+        profile_width=number(product.get('width_mm'),'Dado profile width',maximum=1000)
+        polygons=stair_profile_members(float(inputs['wall_length']),float(inputs['lower_landing']),
+            float(inputs['upper_landing']),slope,run,profile_width)
+        geometry['dado_profiles']={}
         angle = geometry['slope_mitre']
         convention = geometry['angle_convention']
         lower_joint = angle if float(inputs['lower_landing']) > 0 else None
@@ -118,10 +127,22 @@ def rail(cuts, inputs, options, catalogue, *, geometry=None):
         for role, key, start, end in [('Lower landing dado', 'lower_landing', None, angle),
                                        ('Slope dado', 'slope_length', lower_joint, upper_joint),
                                        ('Upper landing dado', 'upper_landing', angle, None)]:
-            cuts.add(product, role, number(inputs.get(key), key.replace('_', ' ').capitalize(), allow_zero=key!='slope_length'),
+            nominal=number(inputs.get(key), key.replace('_', ' ').capitalize(), allow_zero=key!='slope_length')
+            if not nominal:continue
+            section={'lower_landing':'Lower landing','slope_length':'Slope','upper_landing':'Upper landing'}[key]
+            axis=(run/slope,rise/slope) if key=='slope_length' else (1,0)
+            measured=_member(polygons[section],axis=axis)
+            base=round(measured['long_point_mm'],6)
+            geometry['dado_profiles'][role]=dict(vertices=polygons[section],measurements=measured,base_cut_length_mm=base,
+                previous_prepare_length_mm=nominal)
+            before=cuts.serial
+            cuts.add(product, role, base,
                      stock_choices=choices, pool_stock=True, angles={'dado_role':'rail', 'start_joint_setting': start, 'end_joint_setting': end,
                              'slope_angle': geometry['slope_angle'], 'convention': convention,
-                             'measurement': 'Developed route; no speculative long-point allowance. Split interiors are butt joins.'})
+                             'measurement': 'Exact physical long-point blank; split interiors are butt joins.'})
+            for _,cut in cuts.pending_pools:
+                if int(cut['id'].rsplit(':',1)[-1])>before:
+                    cut.update(requirement_status='EXACT',base_cut_length_mm=cut['length_mm'])
     return product['id']
 
 
@@ -152,15 +173,25 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
             n = count(inputs.get('bottom_squares'), 'Bottom horizontal squares')
             zone_height = number(inputs.get('bottom_zone_height'), 'Clear layout height below rail')
             geometry = stair_geometry(w, zone_height, lower, upper, slope, n, 1, gap)
-        warnings.append('Synthetic/recovered stair geometry is not physically verified. Landing/slope boundaries are preserved; the MDF 30 mm allowance is not applied to dado.')
+        warnings.append('Stair rail and square-profile base cuts use fitted physical long points and shared mitre intersections. No transition contingency is added.')
     geometry['rail_stock_id'] = rail(cuts, inputs, options, catalogue, geometry=geometry if stair else None)
     if stair and style == 'Dado Squares Bottom':
         profile = product_for(catalogue, options.get('dado_square_id'), 'square_dado')
-        for edge in bead_edges(geometry, w, lower, upper, gap, 1):
-            information = dict(edge['information'], dado_role='square')
-            cuts.add(profile, edge['role'].replace('Bead ', 'Bottom dado ', 1), edge['length_mm'], angles=information)
-        if geometry['counts']['transition']:
-            warnings.append('Transition square dado pieces are conservative trim-to-fit provisions, not verified finished cuts. Labour and mastic use that provisional requirement.')
+        from .wall_layout import panelling_layout
+        from .profile_geometry import opening_profile_members
+        grid=panelling_layout('PANELLING_STAIR_HALF',w,zone_height,n,1,gap,geometry,
+            lower=lower,upper=upper,slope=slope)
+        geometry['opening_profiles']=opening_profile_members(grid,profile['width_mm'],
+            bead_edges(geometry,w,lower,upper,gap,1),prefix='Bottom dado')
+        for member in geometry['opening_profiles']:
+            information=dict(member['information'],dado_role='square')
+            before=cuts.serial
+            cuts.add(profile,member['label'],member['base_cut_length_mm'],angles=information)
+            for group in cuts.groups.values():
+                for cut in group['cuts']:
+                    if int(cut['id'].rsplit(':',1)[-1])>before:
+                        cut.update(requirement_status='EXACT',base_cut_length_mm=cut['length_mm'])
+        warnings.append('Square profile base cuts follow exact opening boundaries and catalogue-width mitred offsets; no transition contingency is added.')
     elif style != 'Dado':
         gap = number(inputs.get('gap_width'), 'Gap width', maximum=1000)
         profile = product_for(catalogue, options.get('dado_square_id'), 'square_dado')
@@ -198,7 +229,7 @@ def calculate_dado(kind, style, inputs, options, catalogue, kerf, work_item_id):
         frames=geometry.get('frames', []) if is_square else None,
         gap=float(inputs['gap_width']) if is_square else 0, stair=stair,
         lower=lower if stair else 0, upper=upper if stair else 0, slope=slope if stair else 0,
-        square_profile_width=profile['width_mm'] if is_square else 0)
+        square_profile_width=profile['width_mm'] if is_square else 0, groups=groups)
     geometry['layout_height_mm'] = layout_height
     return {'valid': True, 'version': '1.1-dado-follow-up', 'geometry': geometry, 'groups': groups, 'warnings': warnings,
             'horizontal_strips': sum(len(pack(g['cuts'], catalogue[g['material_id']]['length_mm'], kerf)) for g in groups.values()), 'vertical_strips': 0}
@@ -219,7 +250,7 @@ def dado_summary(result, catalogue):
             if square:
                 orientation = 'Vertical' if 'vertical' in info.get('edge', cut['role']) else 'Horizontal'
                 provision = info.get('stock_allowance', False)
-                kind = 'Transition — trim to fit' if provision else ('Angled' if 'angled' in cut['role'].lower() else 'Flat')
+                kind = 'Transition — trim to fit' if provision else ('Transition' if 'transition' in cut['role'].lower() else 'Angled' if 'angled' in cut['role'].lower() else 'Flat')
                 square_counts[(orientation,kind,cut['length_mm'],product['label'])] += 1
                 horizontal += orientation == 'Horizontal'
                 vertical += orientation == 'Vertical'

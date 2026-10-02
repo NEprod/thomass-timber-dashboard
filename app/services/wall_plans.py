@@ -36,7 +36,7 @@ def render_wall_plan(layout, label, high_end='Right'):
         out.append('</g>')
     out.append('</g>')
     for element in layout['elements']:
-        if element['provisional'] and element['kind'] in ('opening', 'frame'):
+        if element['provisional'] and element['kind'] in ('opening', 'frame', 'bead'):
             xs, ys = zip(*element['points'])
             tx, ty = (min(xs) + max(xs)) / 2, height - (min(ys) + max(ys)) / 2
             if mirrored:

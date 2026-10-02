@@ -1,7 +1,7 @@
 """Installation primitives emitted by calculators, never inferred by the SVG UI.
 
 Coordinates are millimetres, x rightwards and y upwards from the low-end floor
-reference. Stair transitions are reference regions, not finished polygons.
+reference. Opening/rail outlines are exact; unmodelled profile transitions remain site-fit.
 """
 import math
 
@@ -161,6 +161,13 @@ def _prepare_runs(groups, group):
     return list(runs.values())
 
 
+def stair_profile_members(width, lower, upper, slope, run, profile_width):
+    """Physical centred profile sections on the same measured/mitred route."""
+    rise = math.sqrt(max(0, slope * slope - run * run))
+    return _mitred_rail_sections(width, lower, upper, rise, run,
+                                -profile_width / 2, profile_width / 2, 0)
+
+
 def _group_wall_parts(parts):
     grouped = {}
     for part in parts:
@@ -169,11 +176,13 @@ def _group_wall_parts(parts):
                tuple((part.get('prepare_dimensions') or {}).items()),
                part['provisional'], tuple(part['notes']))
         if key not in grouped:
-            grouped[key] = dict(part, labels=[part['label']], quantity=1)
+            grouped[key] = dict(part, labels=[part['label']], quantity=1,
+                                cut_links={part['label']:list(part['cut_ids'])})
         else:
             grouped[key]['quantity'] += 1
             grouped[key]['labels'].append(part['label'])
             grouped[key]['cut_ids'] += part['cut_ids']
+            grouped[key]['cut_links'][part['label']] = list(part['cut_ids'])
     return list(grouped.values())
 
 
@@ -184,7 +193,8 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
     cosine = run / slope
     route = [[0, 0], [lower, 0], [width - upper, rise], [width, rise]]
     outer_top = [[x, y + height] for x, y in route]
-    plan.update(installed_panel_height_mm=height, parts=[],
+    plan.update(installed_panel_height_mm=height, parts=[],profile_members=geometry.get('dado_profiles',{}),
+                opening_profile_members=geometry.get('opening_profiles',[]),
                 boundaries=dict(bottom_outer=route, top_outer=outer_top))
     _shape(plan, 'wall', 'Measured lower landing / slope / upper landing', route)
 
@@ -208,8 +218,7 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
             trim_to_fit=provisional or (installed is not None and prepare is not None and not math.isclose(installed, prepare, abs_tol=.01)),
             cut_ids=list(cut_ids or []), notes=list(notes or [])))
 
-    # Opening/batten intersections near a bend remain site-fit references, even
-    # though the envelope and physical rail boundaries themselves are known.
+    # All opening/batten vertices intersect the installed rail boundaries.
     bends = {lower, width - upper}
     bends.update(x for pair in rails for edge in pair for x, _ in edge[1:-1])
     def crosses_bend(start, end):
@@ -220,25 +229,26 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
         typ = column['type']
         for row in range(rows):
             bottom, top = rails[row][1], rails[row + 1][0]
-            provisional = typ == 'transition' or crosses_bend(start, start + sw)
-            label = 'Trim to fit on site' if provisional else f'{typ.capitalize()} opening {index + 1}.{row + 1}'
+            profile_provisional = typ == 'transition' or crosses_bend(start, start + sw)
+            provisional = False  # All opening vertices intersect exact inner rail boundaries.
+            label = f'Opening {index + 1}.{row + 1} · {typ.capitalize()}'
             points = _between_routes(bottom, top, start, start + sw)
             _shape(plan, 'opening', label, points, provisional=provisional)
-            if bead:
-                _shape(plan, 'bead', 'Bead · ' + label, points, provisional=provisional)
+            plan['elements'][-1]['profile_provisional'] = profile_provisional
+            if bead and not geometry.get('opening_profiles'):
+                _shape(plan, 'bead', 'Bead · ' + label + (' · Trim to fit on site' if profile_provisional else ''),
+                       points, provisional=profile_provisional)
             installed_height = _route_y(top, start + sw / 2) - _route_y(bottom, start + sw / 2)
             installed = None if provisional else dict(width_mm=sw, height_mm=round(installed_height, 2))
-            prepare = dict(width_mm=geometry['square_width'] if typ == 'flat' else geometry['angled_square_width'],
-                           height_mm=geometry['square_height'] if typ == 'flat' else geometry['angled_square_height'])
             part(f'Opening {index + 1}.{row + 1}', 'Panel opening', provisional=provisional,
-                 installed_dimensions=installed, prepare_dimensions=prepare,
-                 notes=['Horizontal span × vertical clear height. Prepare dimensions are the existing opening/bead reference.'])
+                 installed_dimensions=installed,
+                 notes=['Horizontal span × centre-sampled clear height; exact side/edge dimensions come from the polygon vertices.'])
 
     vertical_cuts = (groups or {}).get('vertical', {}).get('cuts', [])
     for index in range(columns + 1):
         start = index * (sw + slat)
         bottom, top = rails[0][1], rails[-1][0]
-        provisional = crosses_bend(start, start + slat)
+        provisional = False  # MDF endpoints, including bends, are deterministic intersections.
         _shape(plan, 'mdf', f'Vertical batten {index + 1}',
                _between_routes(bottom, top, start, start + slat), provisional=provisional)
         mid = start + slat / 2
@@ -272,19 +282,41 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
             part(f'{name} rail · {section}', 'Rail', installed, prepare, cut_ids=cut_ids,
                  notes=['Installed run follows the outside rail edge. Prepare retains existing landing adjustments and joins.'])
 
-    # Intermediate workshop horizontals already belong to each opening column.
+    # Intermediate cuts belong to individual columns, unlike the continuous
+    # visual rail. Clip the same boundaries to those real member endpoints.
+    plan['cut_members'] = []
     for index, prepared in enumerate(_prepare_runs(groups, 'middle_horizontal')):
-        column = geometry['columns'][index // max(1, rows - 1)]
+        column_index = index // max(1, rows - 1)
+        rail_index = index % max(1, rows - 1) + 1
+        column = geometry['columns'][column_index]
         provisional = column['type'] == 'transition'
         installed = sw if column['type'] == 'flat' else sw / cosine
+        start=slat + column_index * (sw + slat)
+        bottom,top=rails[rail_index]
+        vertices=_between_routes(bottom,top,start,start+sw)
+        crossing=crosses_bend(start,start+sw)
+        axis=(1,0) if column['type']=='flat' else (run/slope,rise/slope)
+        plan['cut_members'].append(dict(label=f'Middle rail {column_index+1}.{rail_index}',vertices=vertices,axis=axis,
+            cut_ids=prepared['cut_ids'],prepare_length_mm=prepared['length_mm'],
+            cut_status='PROVISIONAL' if crossing else 'EXACT',
+            reason='Intermediate rail crosses a bend; separate physical member/joint endpoints are not modelled.' if crossing else None))
         part(prepared['label'], 'Middle rail', None if provisional else round(installed, 2),
              prepared['length_mm'], provisional=provisional, cut_ids=prepared['cut_ids'])
 
     # Existing bead cutting dimensions stay separate from the installed opening.
     for prepared in _prepare_runs(groups, 'stair_opening_beads'):
+        physical=next((p for p in plan['opening_profile_members'] if p['label']==prepared['label']),None)
+        if physical:
+            _shape(plan,'bead',physical['label'],physical['vertices'])
+            part(prepared['label'],'Bead / moulding',physical['measurements']['member']['centreline_mm'],
+                physical['base_cut_length_mm'],cut_ids=prepared['cut_ids'],
+                notes=['Exact installed profile, mitred at shared offset intersections.'])
+            continue
         info = prepared['angle_information']
         opening = next((p for p in parts if p['label'] == f'Opening {info.get("square")}.{info.get("row")}'), None)
-        provisional = not opening or opening['provisional'] or bool(info.get('stock_allowance'))
+        profile_site_fit = next((e.get('profile_provisional', False) for e in plan['elements']
+            if e['kind'] == 'opening' and e['label'].startswith(f'Opening {info.get("square")}.{info.get("row")} · ')), True)
+        provisional = not opening or profile_site_fit or bool(info.get('stock_allowance'))
         installed = None
         edge = info.get('edge', '')
         if not provisional:
@@ -307,15 +339,16 @@ def _stair_panelling_plan(plan, width, height, columns, rows, slat, geometry,
             _dimension(plan, [start, extent], [end, extent], f'{end-start:g} mm')
     plan['summary'] += [f'Measured slope {slope:g} mm · angle {geometry["slope_angle"]:g}°',
         f'Lower landing {lower:g} mm · horizontal run {run:g} mm · upper landing {upper:g} mm',
-        f'Flat square reference {geometry["square_width"]:g} × {geometry["square_height"]:g} mm',
-        f'Angled prepare reference {geometry["angled_square_width"]:g} × {geometry["angled_square_height"]:g} mm']
+        f'Opening horizontal spacing {sw:g} mm; installed sides/edges shown below']
     plan['notes'] += ['Panel height is the installed vertical outside-to-outside height. Rail width is measured perpendicular to each run.',
-        'Solid members use installed intersections. Dashed transitions are site-fit references, not finished cutting shapes.',
-        'Prepare lengths retain the existing cut demand, allowances and joins; they do not position the drawing.']
+        'Solid members use installed intersections. Only unmodelled components remain site-fit.',
+        'Exact physical members use long-point Base cuts. Only unmodelled components remain site-fit; no spare material is added.']
+    from .installed_geometry import annotate_installed_geometry
+    annotate_installed_geometry(plan, groups or {})
     return plan
 
 def dado_layout(width, height, geometry, rail_width, *, frames=None, gap=0,
-                stair=False, lower=0, upper=0, slope=0, square_profile_width=0):
+                stair=False, lower=0, upper=0, slope=0, square_profile_width=0, groups=None):
     """Height is plain rail centreline, or the existing square clear-zone top."""
     if height is None:
         return None
@@ -348,9 +381,20 @@ def dado_layout(width, height, geometry, rail_width, *, frames=None, gap=0,
             grid = panelling_layout('PANELLING_STAIR_HALF', width, height,
                 len(geometry['columns']), 1, gap, geometry, lower=lower, upper=upper, slope=slope)
             plan['height_mm'] = max(extent, grid['height_mm'])
-            plan['elements'] += [dict(e, kind='frame') for e in grid['elements'] if e['kind'] == 'opening']
+            plan['elements'] += [dict(e, kind='frame', provisional=e['profile_provisional'],
+                label='Trim to fit on site' if e['profile_provisional'] else e['label'])
+                for e in grid['elements'] if e['kind'] == 'opening']
             plan['notes'] += grid['notes']
     _dimension(plan, [0, 0], [width, 0], f'Wall {width:g} mm')
     _dimension(plan, [0, 0], [0, height],
                f'{"Clear zone" if frames is not None else "Centreline"} {height:g} mm', 'vertical')
+    if stair:
+        plan['profile_members'] = geometry.get('dado_profiles',{})
+        plan['opening_profile_members'] = geometry.get('opening_profiles',[])
+        if plan['opening_profile_members']:
+            plan['elements']=[e for e in plan['elements'] if e['kind']!='frame']
+            for member in plan['opening_profile_members']:
+                _shape(plan,'frame',member['label'],member['vertices'])
+        from .installed_geometry import annotate_installed_geometry
+        annotate_installed_geometry(plan, groups or {})
     return plan

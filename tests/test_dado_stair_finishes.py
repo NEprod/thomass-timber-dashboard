@@ -87,7 +87,7 @@ def test_stair_dado_reuses_geometry_and_segment_boundaries(catalogue):
     assert all(result['geometry'][k]==original['geometry'][k] for k in ['horizontal_run','slope_angle','slope_mitre','top_angle_setting','bottom_angle_setting'])
     cuts=[c for g in result['groups'].values() for c in g['cuts']]
     by_role={c['role']:c for c in cuts}
-    assert {k:c['length_mm'] for k,c in by_role.items()}=={'Lower landing dado':250,'Slope dado':1200,'Upper landing dado':250}
+    assert {k:c['length_mm'] for k,c in by_role.items()}==pytest.approx({'Lower landing dado':256.784005,'Slope dado':1213.568011,'Upper landing dado':256.784005})
     assert by_role['Slope dado']['angle_information']['start_joint_setting']==16.78
     assert by_role['Slope dado']['angle_information']['end_joint_setting']==16.78
     assert all(c['allowance_mm']==0 for c in cuts)
@@ -100,10 +100,10 @@ def test_stair_bead_transition_provision_and_kerf(catalogue):
     a,b=[r['groups']['stair_opening_beads']['cuts'] for r in results]
     assert a==b and len(a)==20
     first=[c for c in a if c['angle_information']['square']==1]
-    assert sorted(c['length_mm'] for c in first)==[120,120,180,180,960,960]
-    assert all(c['angle_information']['stock_allowance'] for c in first)
+    assert all(c['requirement_status']=='EXACT' for c in first)
+    assert all('stock_allowance' not in c['angle_information'] for c in first)
     assert sum(c['length_mm'] for c in results[0]['groups']['ledge_beads']['cuts'])==1700
-    assert (results[0]['horizontal_strips'],results[0]['vertical_strips'])==(2,3)
+    assert (results[0]['horizontal_strips'],results[0]['vertical_strips'])==(2,2)
     g=stair_geometry(1500,1000,400,400,1000,1,1,100)
     edges=bead_edges(g,1500,400,400,100,1)
     assert len(edges)==8  # one opening crosses both aligned bends
@@ -187,5 +187,5 @@ def test_stair_segment_splits_keep_only_external_mitres(catalogue):
         if product['category']=='dado' and product['profile']=='45mm':product['length_mm']=1000
     result=calculate('DADO_STAIR','Dado',dict(STAIR,gap_width=100),{'dado_rail_id':'dado-45mm-3m'},products,3)
     cuts=[c for g in result['groups'].values() for c in g['cuts'] if c['role']=='Slope dado']
-    assert [c['length_mm'] for c in cuts]==[1000,200]
+    assert [c['length_mm'] for c in cuts]==pytest.approx([1000,213.568011])
     assert [(c['angle_information']['start_joint_setting'],c['angle_information']['end_joint_setting']) for c in cuts]==[(16.78,0),(0,16.78)]

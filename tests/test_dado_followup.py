@@ -71,7 +71,7 @@ def test_plain_stair_needs_only_route(stocks):
     assert all(result['geometry'][k]==v for k,v in g.items())
     summary=dado_summary(result,stocks)
     assert summary['rail_count']==3 and summary['square_count']==0
-    assert {p['role']:p['length_mm'] for p in summary['rail']}=={'Lower landing dado':250,'Slope dado':1200,'Upper landing dado':250}
+    assert {p['role']:p['length_mm'] for p in summary['rail']}==pytest.approx({'Lower landing dado':256.784005,'Slope dado':1213.568011,'Upper landing dado':256.784005})
     for stock in planned_stocks(result,stocks):
         assert stock['used_mm']==sum(c['length_mm'] for c in stock['cuts'])+3*(len(stock['cuts'])-1)
 
@@ -83,7 +83,7 @@ def test_stair_route_segments_share_one_compatible_stock_length(stocks):
     assert groups[0]['material_id']=='rail-2400'
     stocks_for_room=planned_stocks(result,stocks)
     assert len(stocks_for_room)==1 and stocks_for_room[0]['stock_length_mm']==2400
-    assert [cut['length_mm'] for cut in stocks_for_room[0]['cuts']]==[1200,250,250]
+    assert [cut['length_mm'] for cut in stocks_for_room[0]['cuts']]==pytest.approx([1213.568011,256.784005,256.784005])
 
 
 def test_stair_bottom_uses_dado_fields_and_transition_provisions(stocks):
@@ -94,7 +94,8 @@ def test_stair_bottom_uses_dado_fields_and_transition_provisions(stocks):
     assert [c['type'] for c in g['columns']]==['transition','angled','angled','transition']
     summary=dado_summary(result,stocks)
     assert (summary['rail_count'],summary['horizontal'],summary['vertical'],summary['square_count'])==(3,12,8,20)
-    assert any(p['kind']=='Transition — trim to fit' for p in summary['square'])
+    assert any(p['kind']=='Transition' for p in summary['square'])
+    assert all(p['kind']!='Transition — trim to fit' for p in summary['square'])
     zero=calculate('DADO_STAIR','Dado Squares Bottom',inputs,OPTIONS,stocks,0)
     assert zero['geometry']==g
     assert dado_summary(zero,stocks)['square']==summary['square']

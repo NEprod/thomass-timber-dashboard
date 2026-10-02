@@ -1,0 +1,38 @@
+<details class="secondary-details installed-dimensions" open>
+  <summary>Installed Dimensions <span>Installed · Base cut · Site-fit</span></summary>
+  <p class="hint">Dimensions below come from the same vertices as the wall SVG. Long/short point references run along the member axis; they are not diagonals. Exact opening profiles use catalogue-width inward offsets and shared mitre seams.</p>
+  <ul class="sheet-part-list wall-part-list">
+    {% for part in installed_groups(layout) %}{% set m=part.measurements %}
+    <li><strong>{{ part.quantity }} × {{ part.component }} · {{ part.status }}</strong>
+      <small>{{ part.labels|join(' · ') }}</small>
+      {% if part.get('cut_status')=='PROVISIONAL' and part.status=='EXACT' %}<small>Physical cut: PROVISIONAL · Trim to fit on site</small>{% endif %}
+      {% if part.status=='PROVISIONAL' %}
+      <span>Installed: site-fit · Trim to fit on site</span>
+      <small>{{ part.reason }}</small>
+      {% elif m.get('opening') %}{% set opening=m.opening %}
+      <span>Installed horizontal spacing: {{ '%.2f'|format(opening.horizontal_spacing_mm) }} mm<br>
+        Installed vertical sides · left / right: {{ '%.2f'|format(opening.left_vertical_mm) }} / {{ '%.2f'|format(opening.right_vertical_mm) }} mm<br>
+        Installed upper edges: {% for length in opening.top_edges_mm %}{{ '%.2f'|format(length) }} mm{% if not loop.last %} + {% endif %}{% endfor %}<br>
+        Installed lower edges: {% for length in opening.bottom_edges_mm %}{{ '%.2f'|format(length) }} mm{% if not loop.last %} + {% endif %}{% endfor %}<br>
+        Internal angles: {% for angle in m.angles %}{{ '%.2f'|format(angle.internal_angle_deg) }}°{% if not loop.last %} / {% endif %}{% endfor %}
+      </span>
+      {% elif m.get('member') %}{% set member=m.member %}
+      <span>Installed long point: {{ '%.2f'|format(member.long_point_mm) }} mm{% if member.get('short_point_mm') is not none %} · Installed short point: {{ '%.2f'|format(member.short_point_mm) }} mm{% endif %}<br>
+        {% if member.get('centreline_mm') is not none %}
+        Installed centreline: {{ '%.2f'|format(member.centreline_mm) }} mm<br>
+        Installed longitudinal edges: {{ '%.2f'|format(member.longitudinal_edges_mm[0]) }} / {{ '%.2f'|format(member.longitudinal_edges_mm[1]) }} mm<br>
+        Mitre · start / end: {{ '%.2f'|format(member.start_mitre_deg) }}° / {{ '%.2f'|format(member.end_mitre_deg) }}°{% endif %}
+      </span>
+      {% elif m.get('path_length_mm') is not none %}
+      <span>Installed {{ 'centreline' if part.component=='Dado' else 'opening-boundary path' }}: {{ '%.2f'|format(m.path_length_mm) }} mm
+        {% if m.get('start_mitre_deg') is not none %} · Start mitre {{ '%.2f'|format(m.start_mitre_deg) }}°{% endif %}
+        {% if m.get('end_mitre_deg') is not none %} · End mitre {{ '%.2f'|format(m.end_mitre_deg) }}°{% endif %}
+      </span><small>{{ m.reference }}</small>
+      {% else %}<span>Exact clipped polygon · edge lengths: {% for edge in m.edges %}{{ '%.2f'|format(edge.length_mm) }} mm{% if not loop.last %} / {% endif %}{% endfor %}</span>{% endif %}
+      {% if part.get('base_cut_length_mm') is not none %}<small>Base cut: {{ '%.2f'|format(part.base_cut_length_mm) }} mm</small>
+      {% elif part.prepare_length_mm is not none %}<small>{{ 'Site-fit Prepare' if part.get('cut_status')=='PROVISIONAL' else 'Prepare length' }}: {{ '%g'|format(part.prepare_length_mm) }} mm</small>
+      {% elif part.prepare_dimensions %}<small>Prepare reference: {{ '%g'|format(part.prepare_dimensions.width_mm) }} × {{ '%g'|format(part.prepare_dimensions.height_mm) }} mm</small>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</details>

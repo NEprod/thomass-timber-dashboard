@@ -3,7 +3,7 @@ See docs/CALCULATIONS.md for provenance and isolated safety corrections.
 """
 from dataclasses import dataclass, asdict
 from .packing import CalculationError, number, pack, split_run
-from .geometry import stair_geometry, WORKSHOP_ALLOWANCE_MM
+from .geometry import stair_geometry
 
 TYPES = {'PANELLING_FULL':'Full square panelling','PANELLING_HALF':'Half square panelling',
          'PANELLING_STAIR_HALF':'Stair half-wall panelling',
@@ -87,9 +87,8 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
         slope=number(inputs.get('slope_length'),'Measured slope length')
         geometry=stair_geometry(w,h,lower,upper,slope,n,r,s)
         angles={k:geometry[k] for k in ['slope_mitre','top_angle_setting','bottom_angle_setting','acute_included_angle','obtuse_included_angle','angle_convention']}
-        allowance=WORKSHOP_ALLOWANCE_MM
-        for role,value,adjust in [('Top (Upper Landing)',upper+allowance,allowance),('Top (Lower Landing)',max(0,lower-allowance),-min(lower,allowance)),('Bottom (Upper Landing)',upper,0),('Bottom (Lower Landing)',lower,0)]:
-            add('top_and_bottom_horizontal',role,value,split=True,allowance=adjust,angles=angles)
+        for role,value in [('Top (Upper Landing)',upper),('Top (Lower Landing)',lower),('Bottom (Upper Landing)',upper),('Bottom (Lower Landing)',lower)]:
+            add('top_and_bottom_horizontal',role,value,split=True,angles=angles)
         add('top_and_bottom_horizontal','Slope',slope,2,split=True,angles=angles)
         add('vertical','Flat',geometry['vertical_height'])
         for i,col in enumerate(geometry['columns']):
@@ -97,7 +96,7 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
             angled=typ=='angled' or (typ=='transition' and (i==0 or geometry['columns'][i-1]['type']=='flat'))
             add('vertical',('Angled' if angled else 'Flat')+(' (Trans)' if typ=='transition' else ''),geometry['angled_vertical_height'] if angled else geometry['vertical_height'],angles=angles)
             if r>1: add('middle_horizontal','Middle ('+typ+')',sw if typ=='flat' else geometry['angled_square_width'],r-1,angles=angles)
-        warnings.append('Historical 30 mm top-landing allowance retained. Displayed angles need physical saw-orientation verification.')
+        warnings.append('Exact MDF base cuts use installed long-point geometry; no spare material is added. Displayed saw settings still require physical orientation verification.')
     if 'ledge' in subtype:
         ledge_width=number(options.get('ledge_width'), 'Ledge rip width', maximum=sheet_width)
         run=w if kind!='PANELLING_STAIR_HALF' else lower+upper+slope
@@ -112,10 +111,15 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
             add(group,'Bead vertical',height,count*2,material=bead,width=bead['width_mm'])
         if kind=='PANELLING_STAIR_HALF':
             from .stair_bead import bead_edges
-            for edge in bead_edges(geometry,w,lower,upper,s,r):
-                add('stair_opening_beads',edge['role'],edge['length_mm'],material=bead,width=bead['width_mm'],angles=edge['information'])
-            if geometry['counts']['transition']:
-                warnings.append('User-approved transition bead stock allowance: larger recovered square sizes, with top/bottom bends at the same horizontal position. Trim to the measured opening; these are not finished cutting dimensions. Labour/mastic use this provisional required allowance, excluding purchased remainder.')
+            from .wall_layout import panelling_layout
+            from .profile_geometry import opening_profile_members
+            installed = panelling_layout(kind,w,h,n,r,s,geometry,lower=lower,upper=upper,slope=slope)
+            geometry['opening_profiles']=opening_profile_members(installed,bead['width_mm'],
+                bead_edges(geometry,w,lower,upper,s,r))
+            for member in geometry['opening_profiles']:
+                add('stair_opening_beads',member['label'],member['base_cut_length_mm'],material=bead,
+                    width=bead['width_mm'],angles=member['information'])
+            warnings.append('Opening bead base cuts use exact fitted profile long points; no transition stock allowance or spare material is added.')
             if 'ledge' in subtype:
                 for role,value in [('Lower landing under-ledge bead',lower),('Slope under-ledge bead',slope),('Upper landing under-ledge bead',upper)]:
                     add('ledge_beads',role,value,material=bead,width=bead['width_mm'],split=True,angles=angles)
@@ -130,13 +134,17 @@ def calculate(kind, subtype, inputs, options, catalogue, kerf, work_item_id='pre
         warnings.append('Additional dado is a separate rail demand; bead still follows the MDF openings. Confirm placement and any rail joints independently.')
     # Historical strip counts remain calculation metrics. Purchased stock and
     # the workshop cut plan are decided from all labelled cuts in the room.
-    strip_counts = {name: len(pack(group['cuts'], catalogue[group['material_id']]['length_mm'], kerf))
-                    for name, group in groups.items()}
     from .wall_layout import panelling_layout
     geometry['wall_layout'] = panelling_layout(kind, w, h, n, r, s, geometry,
         bead='bead' in subtype, lower=lower if kind=='PANELLING_STAIR_HALF' else 0,
         upper=upper if kind=='PANELLING_STAIR_HALF' else 0,
         slope=slope if kind=='PANELLING_STAIR_HALF' else 0, groups=groups)
+    if kind=='PANELLING_STAIR_HALF':
+        from .stair_cuts import exact_base_cuts
+        exact_base_cuts(geometry['wall_layout'],groups,catalogue)
+        geometry['wall_layout']['notes'][-1]='Exact physical members use long-point Base cuts. Only unmodelled components remain site-fit; no spare material is added.'
+    strip_counts = {name: len(pack(group['cuts'], catalogue[group['material_id']]['length_mm'], kerf))
+                    for name, group in groups.items()}
     if options.get('dado_enabled'):
         geometry['wall_layout']['notes'].append('Additional dado rail: installation height is not set by this panelling calculation; confirm its position separately.')
     return {'valid':True,'version':VERSION,'geometry':geometry,'groups':groups,'warnings':warnings,

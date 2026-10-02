@@ -76,12 +76,12 @@ def test_stair_prepare_cut_assignments_installed_metadata_and_safe_labels(catalo
         assert [s['source'] for s in plan['segments']]==rip['finished_cuts']
         svg=render_linear_stock_plan(plan,'Strip <unsafe> & stock')
         assert '&lt;unsafe&gt;' in svg and '<unsafe>' not in svg
-        assert [float(e.attrib['width']) for e in elements(svg,'cut')]==[c['length_mm'] for c in rip['finished_cuts']]
-        assert [float(e.attrib['x']) for e in elements(svg,'kerf')]==[k['position_mm'] for k in plan['kerfs']]
+        assert [float(e.attrib['width']) for e in elements(svg,'cut')]==pytest.approx([c['length_mm'] for c in rip['finished_cuts']],abs=.01)
+        assert [float(e.attrib['x']) for e in elements(svg,'kerf')]==pytest.approx([k['position_mm'] for k in plan['kerfs']],abs=.01)
         assert plan['used_mm']+plan['remainder_mm']==2440
         cuts.extend(plan['segments'])
     assert any(s['size_mm']==2440 for s in cuts)
-    assert sum(s['size_mm']==1280 and s['installed_length_mm']==680 for s in cuts)==3
+    assert sum(s['size_mm']==pytest.approx(804.89996) and s['installed_length_mm']==680 for s in cuts)==3
     assert sorted(s['source']['id'] for s in cuts)==sorted(c['id'] for group in result['groups'].values() for c in group['cuts'])
     assert (result,packed)==before
 
@@ -141,7 +141,7 @@ def test_quote_rendering_does_not_mutate_plan_and_cabinet_uses_existing_sheet_te
     for _ in range(2):
         page=signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
         assert 'Workshop Preparation' in page and 'Cut Plan' in page and 'stock-plan-svg' in page
-        assert 'Prepare 1280' in page and 'Installed 680' in page
+        assert 'Base cut 804.9' in page and 'Installed centreline 680' in page
         assert 'Guillotine sheet plan' in page and 'Sheet Cut Plan' in page
         assert 'Installed height 1000 mm' in page
     with app.app_context():assert db.session.get(Quote,qid).result==before

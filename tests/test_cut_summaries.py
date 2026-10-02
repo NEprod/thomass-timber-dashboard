@@ -70,25 +70,25 @@ def test_true_rail_mitre_shared_seams_all_four_bends(catalogue, seed_data, value
         distance = abs((b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])) / math.dist(a,b)
         assert distance == pytest.approx(values['slat_width'])
     parts = {label:p for p in plan['parts'] for label in p['labels']}
-    assert parts['Top rail · Lower landing']['prepare_length_mm']==970
-    assert parts['Top rail · Upper landing']['prepare_length_mm']==1030
-    assert parts['Top rail · Lower landing']['installed_length_mm']==1000
-    assert any(e['provisional'] and e['kind']=='opening' for e in plan['elements'])
-    assert 'Trim to fit on site' in render_wall_plan(plan,'Stair')
-    assert 'stroke-dasharray' in render_wall_plan(plan,'Stair')
+    assert parts['Top rail · Lower landing']['prepare_length_mm']==pytest.approx(1040.824829)
+    assert parts['Top rail · Upper landing']['prepare_length_mm']==1000
+    assert parts['Top rail · Lower landing']['installed_length_mm']==pytest.approx(1020.412415)
+    assert any(e.get('profile_provisional') and e['kind']=='opening' for e in plan['elements'])
+    assert all(not e['provisional'] for e in plan['elements'] if e['kind']=='opening')
+    assert all(e['kind']!='bead' for e in plan['elements'])  # Plain stair has no unmodelled bead pieces.
     assert 'translate(4500 0) scale(-1 1)' in render_wall_plan(plan,'Stair','Left')
     assert calculate('PANELLING_STAIR_HALF','plain',values,dict(OPTIONS,high_end='Left'),catalogue,3)==result
     assert result==before
     summary = cut_summary(result['groups'])
     verticals = next(f for f in summary if f['label']=='Vertical')['rows']
-    assert any(r['prepare_length_mm']==1120 for r in verticals)
+    assert any(r['prepare_length_mm']==pytest.approx(817.97959) for r in verticals)
     assert not any(r['prepare_length_mm']==720 for r in verticals)
     # The baseline prepare demands, strip packing and prices are invariant to
     # geometry generation: consuming the summary cannot mutate these records.
     price = aggregate([result],catalogue,seed_data['pricing'])
     cut_summary(result['groups']); render_wall_plan(plan,'Stair')
     assert aggregate([result],catalogue,seed_data['pricing'])==price
-    assert [c['length_mm'] for c in result['groups']['vertical']['cuts']]==[800,1120,1120,1120,800]
+    assert [c['length_mm'] for c in result['groups']['vertical']['cuts']]==pytest.approx([800,817.97959,817.97959,817.97959,800])
 
 
 @pytest.mark.parametrize(('lower','upper'),[(0,0),(0,1000),(1000,0),(1,1)])
@@ -107,9 +107,9 @@ def test_current_quote_compact_summary_keeps_room_svgs_and_demand(app,signed_in)
     with app.app_context():before=deepcopy(db.session.get(Quote,qid).result)
     for _ in range(2):
         page=signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
-        assert 'Cut Summary' in page and '2 × 1120mm' in page
+        assert 'Cut Summary' in page and '2 × 817.98mm' in page
         assert 'Finished cuts' not in page and '<summary>Workshop preparation' not in page
         assert 'Workshop Preparation' in page and 'stock-plan-svg' in page
         assert 'Wall Layout' in page and 'Room cut plan' in page
-        assert 'Prepare 1120' in page and 'Installed 720' in page
+        assert 'Base cut 817.98' in page and 'Installed centreline 720' in page
     with app.app_context():assert db.session.get(Quote,qid).result==before

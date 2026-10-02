@@ -7,7 +7,9 @@
   <p class="hint">{{ layout.summary|join(' · ') }}{% if layout.stair %} · High end {{ item.options.get('high_end','Right') }}{% endif %}.</p>
   <p class="hint">MDF = shaded members · bead / moulding = secondary outlines · dado = reference line.</p>
   {% for note in layout.notes %}<p class="hint">{{ note }}</p>{% endfor %}
-  {% if layout.get('parts') %}
+  {% if layout.get('installed_components') %}
+  {% include '_installed_dimensions.html' %}
+  {% elif layout.get('parts') %}
   <h4>Installed layout &amp; workshop preparation</h4>
   <ul class="sheet-part-list wall-part-list">
     {% for part in layout.parts %}
