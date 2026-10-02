@@ -11,6 +11,8 @@ from .models import (db, User, Customer, Quote, Room, WorkItem, Material, Pricin
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
 from .services.wall_plans import render_wall_plan
 from .services.installed_dimensions import installed_groups
+from .services.spare_material import recommendations as spare_recommendations
+from .services.dimensional_extras import strip_payload
 from .services.cut_summaries import cut_summary
 from .services.stock_plans import prepare_stock_views, render_sheet_rip_plan, render_linear_stock_plan
 from .calculations.cabinet import PRESETS as CABINET_PRESETS
@@ -281,6 +283,41 @@ def quote_edit(quote_id):
                     state=JobMaterialState(material_id=material_id,room_id=room.id,
                                            extra_quantity=quantity);q.material_states.append(state)
                 else:state.extra_quantity=quantity
+            elif action=='add_recommended_spares':
+                room=quote_room(q)
+                offered=[rec for rec in spare_recommendations(q) if rec['room_id']==room.id]
+                selected=[]
+                for rec in offered:
+                    quantity=whole(request.form.get('spare_'+rec['id'],0),'Selected spare quantity')
+                    if quantity>rec['quantity']:
+                        raise CalculationError('Selected quantity exceeds the current recommendation. Reload the quote.')
+                    if quantity:selected.append((rec,quantity))
+                if not selected:raise CalculationError('Choose a quantity for at least one recommendation.')
+                for rec,quantity in selected:
+                    state=next((row for row in q.material_states if row.material_id==rec['material_id']
+                                and row.room_id==room.id),None)
+                    if state is None:
+                        state=JobMaterialState(material_id=rec['material_id'],room_id=room.id,extra_quantity=0)
+                        q.material_states.append(state)
+                    if rec['kind']=='rectangular_strip':
+                        payload=strip_payload(q.snapshot['catalogue'][rec['material_id']],
+                            rec['width_mm'],rec['length_mm'],quantity)
+                        state.dimensional_extras=list(state.dimensional_extras or [])+[payload]
+                    else:state.extra_quantity+=quantity
+            elif action=='set_dimensional_extra':
+                state=db.session.get(JobMaterialState,request.form.get('state_id',type=int))
+                if not state or state.quote_id!=q.id or state.room_id is None:
+                    raise CalculationError('Choose dimensional Extra Material belonging to this quote and room.')
+                index=whole(request.form.get('extra_index'),'Extra strip index')
+                entries=list(state.dimensional_extras or [])
+                if index>=len(entries):raise CalculationError('This dimensional extra no longer exists. Reload the quote.')
+                entry=entries[index]
+                quantity=whole(request.form.get('quantity'),'Extra strip quantity')
+                payload=strip_payload(q.snapshot['catalogue'][state.material_id],
+                    entry['width_mm'],entry['length_mm'],quantity)
+                if quantity:entries[index]=payload
+                else:entries.pop(index)
+                state.dimensional_extras=entries or None
             elif action=='assign_extra_material':
                 room=quote_room(q)
                 state=db.session.get(JobMaterialState,request.form.get('state_id',type=int))
@@ -404,7 +441,7 @@ def quote_edit(quote_id):
                 if not room:abort(404)
                 if action=='delete_room':
                     room_extras=[state for state in q.material_states if state.room_id==room.id]
-                    if any(state.extra_quantity for state in room_extras):
+                    if any(state.extra_quantity or state.dimensional_extras for state in room_extras):
                         raise CalculationError('Remove this room’s Extra Material before deleting the room.')
                     allocations=db.session.scalars(db.select(OwnedStockAllocation).where(
                         OwnedStockAllocation.quote_id==q.id,
@@ -474,7 +511,7 @@ def quote_edit(quote_id):
             reaggregate(q);db.session.commit()
             for item_id,name in photos_to_remove:remove_upload(photo_dir(q.id,item_id),name)
             flash('Quote saved. Calculations and totals updated.','success')
-            anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ('#quote-financials' if action in ('set_extra_material','assign_extra_material','mark_material_purchased','allocate_owned_stock','remove_owned_allocation','assign_physical_stock','add_consumable','edit_consumable','delete_consumable','add_charge','edit_charge','delete_charge','add_payment','mark_deposit_paid','edit_payment','delete_payment','record_leftover') else '')
+            anchor=f"#item-{item.id}" if action in ('edit_item','add_item') else ('#quote-financials' if action in ('add_recommended_spares','set_dimensional_extra','set_extra_material','assign_extra_material','mark_material_purchased','allocate_owned_stock','remove_owned_allocation','assign_physical_stock','add_consumable','edit_consumable','delete_consumable','add_charge','edit_charge','delete_charge','add_payment','mark_deposit_paid','edit_payment','delete_payment','record_leftover') else '')
             return redirect(request.path+anchor)
         except CalculationError as exc:db.session.rollback();flash(str(exc),'error')
         except StaleDataError:db.session.rollback();abort(409,description='This quote changed in another session. Reload before editing.')
@@ -483,7 +520,7 @@ def quote_edit(quote_id):
     plan=material_plan(q)
     recommendations=stock_recommendations(q,plan,stock,
         [allocation for allocation in allocations if assigned_room(q,allocation) is not None])
-    return render_template('quote_edit.html',quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,today=date.today())
+    return render_template('quote_edit.html',quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,spare_recommendations=spare_recommendations(q),today=date.today())
 
 @web.route('/materials',methods=['GET','POST'])
 @login_required

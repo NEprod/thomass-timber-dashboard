@@ -7,6 +7,7 @@ from ..calculations.sections import calculate
 from ..calculations.packing import CalculationError
 from ..calculations.pricing import aggregate, money
 from .room_procurement import procurement_plan, assigned_room
+from .dimensional_extras import with_dimensional_extras, room_inputs
 
 def current_snapshot():
     config=db.session.get(PricingConfig,1)
@@ -89,7 +90,15 @@ def material_plan(quote, result=None):
         for room_id in room_ids:
             room = next(entry for entry in quote.rooms if entry.id == room_id)
             extra = extra_by_room[room_id]
-            calculated_units = stock_units[room_id]
+            packed_units = stock_units[room_id]
+            baseline = result.get('exact_stock_counts')
+            calculated_units = (next((entry['quantity'] for entry in baseline
+                if entry['room_id']==room_id and entry['material_id']==material_id), 0)
+                if baseline is not None else packed_units)
+            dimensional_units = packed_units - calculated_units
+            dimensional = [dict(p, state_id=state.id, index=index)
+                for state in states[material_id] if state.room_id==room_id
+                for index,p in enumerate(state.dimensional_extras or [])]
             units_needed = room_needs[(room_id, material_id)]
             extra_offset = min(extra, unused)
             unused -= extra_offset
@@ -104,12 +113,13 @@ def material_plan(quote, result=None):
                 cost=0, room_demands=[])
             row.update(room_id=room_id, room_name=room.name if room else None,
                        calculated_quantity=calculated_units, extra_quantity=extra,
-                       total_quantity=calculated_units + extra,
+                       total_quantity=packed_units + extra,
+                       dimensional_extras=dimensional, dimensional_extra_raw_quantity=dimensional_units,
                        allocated_owned_quantity=allocated, purchased_quantity=purchased,
                        need_to_purchase_quantity=units_needed + extra_need,
                        room_purchase_units=[], extra_need_units=extra_need,
                        unit_price=product.get('price', 0),
-                       chargeable_cost=money(calculated_units * product.get('price', 0) +
+                       chargeable_cost=money(packed_units * product.get('price', 0) +
                                              extra * product.get('price', 0)))
             plan.append(row)
         for legacy_state in unassigned_states:
@@ -144,15 +154,15 @@ def material_plan(quote, result=None):
 def reaggregate(quote):
     # Room IDs are part of the persisted stock plan, including newly added rooms.
     db.session.flush()
-    rooms=[dict(id=room.id, name=room.name,
-                items=[dict(id=item.id, name=item.name, result=item.result) for item in room.items])
-           for room in quote.rooms]
+    rooms=room_inputs(quote)
     result=aggregate([item['result'] for room in rooms for item in room['items']],
                      quote.snapshot['catalogue'],quote.snapshot['pricing'],
                      quote.full_days,quote.extra_hours,rooms=rooms)
+    result=with_dimensional_extras(quote, result)
     plan = material_plan(quote, result)
-    extra_material_cost = money(sum(row['extra_quantity'] * row['unit_price'] for row in plan))
-    chargeable_material_cost = money(result['material_cost'] + extra_material_cost)
+    whole_extra_cost = money(sum(row['extra_quantity'] * row['unit_price'] for row in plan))
+    extra_material_cost = money(whole_extra_cost + result.get('dimensional_extra_cost',0))
+    chargeable_material_cost = money(result['material_cost'] + whole_extra_cost)
     consumable_cost = money(sum(row.quantity * row.unit_price for row in quote.consumables))
     additional_cost = money(sum(row.amount for row in quote.additional_charges))
     paid = money(sum(row.amount for row in quote.payments))

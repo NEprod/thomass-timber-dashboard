@@ -74,3 +74,32 @@ Catalogue and pricing are JSON snapshots on each quote, independent of editable 
 - Historic MDF, bead and dado catalogue data are seeded once. Dado style vocabulary and 45/70 mm preferred 3000 mm stock metadata are retained; Milestone 3 now generates dado cuts using explicit product-use permissions and new documented layout rules.
 - Customer edits update the reusable customer record. Quote price snapshots are implemented; immutable customer/address revisions are not.
 - First-run administrator authentication is intentionally simple. No multi-user roles UI, account recovery or production deployment is included.
+
+## Optional Recommended Spare Material (v1.5.5)
+
+Exact Work Item cuts remain unchanged. Deterministic advisory recommendations use
+room-owned stock/remainders, structured stair/transition/mitre/site-fit/join and
+external-corner metadata. Defaults: up to two full-length MDF strips for stairs;
+one strip for straight work lacking recovery capacity; one purchasable linear
+length for complex or tight work without practical recovery. Useful straight
+linear remainder produces no recommendation. Complex work with recovery is lower
+priority. Cabinet sheets have no default spare merely because a Cabinet exists.
+PSE uses the linear policy. Invalid components never generate recommendations.
+
+Accepted MDF strips live in the optional `JobMaterialState.dimensional_extras`
+JSON list (kind, width_mm, length_mm, quantity); existing `extra_quantity` still
+means whole catalogue products. Only full-length MDF strips are supported here.
+One record can contain different strip widths. Set quantity to zero to remove an
+entry. Migration `h31_dimensional_extra_material` adds the nullable column and
+does not reinterpret existing records.
+
+Preview and acceptance use the same side-effect-free room-demand adapter and
+unchanged room packing algorithms. Extra demand is not a Work Item and never
+adds labour, mastic, cut charges or installed components. Raw stock cost changes
+only when repacking changes sheet count. Whole-product extras retain their
+existing per-product charging. Owned stock still affects actual procurement
+only. Spare strips fitting current sheets consume theoretical remainder:
+"No additional sheet required" does not mean material is free. Each quantity's
+preview is incremental to current accepted extras; combined selections are
+repacked together. Accepted quantities offset the recommendation target so they
+cannot be repeatedly offered as missing. No automatic contingency is added.

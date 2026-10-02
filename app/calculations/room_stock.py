@@ -159,6 +159,7 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10, sheet_trim=10, sheet_k
         buckets = defaultdict(list)
         mdf_rips = defaultdict(list)
         sheet_parts = defaultdict(list)
+        demand_groups = []
         for item in room['items']:
             result = item['result']
             if not result.get('valid'):
@@ -166,15 +167,20 @@ def pack_rooms(rooms, catalogue, kerf, *, coving_kerf=10, sheet_trim=10, sheet_k
             for part in result.get('sheet_parts', []):
                 sheet_parts[part['material_id']].append(dict(part, room_id=room['id'],
                     room_name=room['name'], wall_name=item['name'], work_item_id=str(item['id'])))
-            for group in result.get('groups', {}).values():
-                product = catalogue[group['material_id']]
-                family = (('dado', product['profile'], product['width_mm'], product['thickness_mm'])
-                          if product['category'] in ('dado', 'coving')
-                          else ('product', product['id']))
-                for cut in group['cuts']:
-                    labelled = dict(cut, work_item_id=cut.get('work_item_id') or str(item['id']),
-                                    wall_name=item['name'], room_name=room['name'])
-                    buckets[(family, group['width_mm'])].append(labelled)
+            demand_groups.extend((group, item['name'], str(item['id']))
+                                 for group in result.get('groups', {}).values())
+        # Accepted dimensional extras are demand, never synthetic Work Items.
+        demand_groups.extend((group, 'Extra Material', None)
+                             for group in room.get('extra_groups', []))
+        for group, wall_name, item_id in demand_groups:
+            product = catalogue[group['material_id']]
+            family = (('dado', product['profile'], product['width_mm'], product['thickness_mm'])
+                      if product['category'] in ('dado', 'coving')
+                      else ('product', product['id']))
+            for cut in group['cuts']:
+                labelled = dict(cut, work_item_id=cut.get('work_item_id') or item_id,
+                                wall_name=wall_name, room_name=room['name'])
+                buckets[(family, group['width_mm'])].append(labelled)
         for (family, width), cuts in buckets.items():
             product = catalogue[cuts[0]['material_id']]
             group_kerf = coving_kerf if product['category'] == 'coving' else kerf

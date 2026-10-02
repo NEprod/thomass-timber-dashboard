@@ -1,0 +1,19 @@
+<details class="secondary-details" id="recommended-spares" open>
+  <summary>Recommended Spare Material <span>Optional · select quantities individually</span></summary>
+  <p class="hint">The exact calculated requirement is unchanged until you add selected quantities to Extra Material. Spare strips consume theoretical remainder; they do not create owned stock. Costs below are additional raw-stock costs at saved catalogue prices. Combined selections are repacked together.</p>
+  {% for room in quote.rooms %}
+  {% set choices=spare_recommendations|selectattr('room_id','equalto',room.id)|list %}
+  <section class="material-room" aria-label="Recommended spares for {{ room.name }}"><h5>{{ room.name }}</h5>
+  {% if choices %}<form method="post">{{ token(quote,'add_recommended_spares') }}<input type="hidden" name="room_id" value="{{ room.id }}">
+    {% for rec in choices %}<article class="sheet-plan">
+      <div class="section-heading"><h4>{{ rec.label }}</h4><span class="pill">{{ rec.priority }}</span></div>
+      <p><strong>Recommended: {{ rec.quantity }} × {% if rec.kind=='rectangular_strip' %}{{ '%g'|format(rec.width_mm) }}×{{ '%g'|format(rec.length_mm) }} mm spare strip{% else %}{{ '%g'|format(rec.length_mm) }} mm stock length{% endif %}</strong></p>
+      <p class="hint">{{ rec.reasons|join(' · ') }}.</p>
+      <p class="hint">Exact requirement: {{ rec.current_requirement }} {{ 'prepared strips' if rec.kind=='rectangular_strip' else 'physical cuts' }} · Current raw stock: {{ rec.current_stock_count }} {{ 'sheets' if rec.kind=='rectangular_strip' else 'lengths' }}.{% if rec.accepted_quantity %} Already covered by Extra Material: {{ rec.accepted_quantity }}.{% endif %}</p>
+      <ul class="sheet-part-list">{% for preview in rec.previews %}<li>{{ preview.quantity }} selected → {{ preview.stock_count }} {{ 'sheets' if rec.kind=='rectangular_strip' else 'stock lengths' }} · {% if rec.kind=='rectangular_strip' and not preview.additional_stock %}No additional sheet required{% else %}Additional {{ 'sheet' if rec.kind=='rectangular_strip' else 'stock length' }} required: {{ preview.additional_stock }}{% endif %} · Incremental purchase cost {{ preview.incremental_cost|gbp }}{% if preview.get('remainders') %}<small>Repacked sheet used widths: {{ preview.used_widths|map('round',2)|join(' / ') }} mm · remaining widths: {{ preview.remainders|map('round',2)|join(' / ') }} mm.</small>{% endif %}</li>{% endfor %}</ul>
+      <label>Quantity to add · 0 means not selected<select name="spare_{{ rec.id }}" aria-label="Spare quantity for {{ rec.label }}{% if rec.kind=='rectangular_strip' %} {{ '%g'|format(rec.width_mm) }} mm strips{% endif %} in {{ room.name }}">{% for quantity in range(rec.quantity+1) %}<option value="{{ quantity }}">{{ quantity }}</option>{% endfor %}</select></label>
+    </article>{% endfor %}
+    <button class="primary">Add selected to Extra Material</button>
+  </form>{% else %}<p class="hint">No additional spare material recommended. Existing Extra Material is included in this assessment.</p>{% endif %}
+  </section>{% endfor %}
+</details>

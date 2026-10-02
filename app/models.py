@@ -170,6 +170,7 @@ class JobMaterialState(db.Model):
     material_id = db.Column(db.String(100), nullable=False)
     room_id = db.Column(db.Integer, db.ForeignKey('room.id'))
     extra_quantity = db.Column(db.Integer, nullable=False, default=0)
+    dimensional_extras = db.Column(db.JSON, nullable=True)
     quote = db.relationship('Quote', back_populates='material_states')
     room = db.relationship('Room')
     __table_args__ = (db.UniqueConstraint('quote_id', 'material_id', 'room_id', name='uq_job_material_state_room'),)
