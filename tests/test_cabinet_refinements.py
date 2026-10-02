@@ -185,7 +185,7 @@ def test_refined_quote_save_reopen_pse_extras_purchase_and_reservation(app, sign
     html = signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
     assert 'Door 1 Shaker centre panel' in html and 'Worktop strip 5' in html
     assert 'sheet-diagram' in html and 'Glue-up PSE timber' in html and 'Free-standing Bench' in html
-    assert 'Cabinet finished linear cuts' in html
+    assert 'Cut Summary' in html and 'Pse Cut Plan' in html
     assert post_quote(signed_in, app, qid, 'allocate_owned_stock', room_id=rid,
         material_id='pse-100x25-2.4m', owned_stock_id=stock_id, quantity=1).status_code == 302
     with app.app_context():

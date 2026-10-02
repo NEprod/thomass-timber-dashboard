@@ -134,3 +134,11 @@ function restoreQuoteContext() {
 }
 if (document.readyState === 'complete') restoreQuoteContext();
 else window.addEventListener('load', restoreQuoteContext, {once: true});
+
+// Jump controls reveal their destination without submitting or recalculating.
+document.querySelectorAll('.quote-jumps a, .page-heading a[href="#quotation-total"]').forEach(link => {
+  link.addEventListener('click', () => {
+    const target = document.getElementById(link.hash.slice(1));
+    if (target instanceof HTMLDetailsElement) target.open = true;
+  });
+});

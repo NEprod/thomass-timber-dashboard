@@ -227,7 +227,7 @@ def test_current_quote_cabinet_saves_reopens_and_shows_sheet_plan(app, signed_in
     page = client.get(f'/quotes/{qid}')
     assert page.status_code == 200
     html = page.get_data(as_text=True)
-    assert 'Cabinet finished parts and sheet cut blanks' in html
+    assert 'Installed Dimensions · Cabinet parts and sheet cut blanks' in html
     assert '<td>797.0 × 796.0</td>' in html
     assert '<td>795.0 × 794.0</td>' in html
     assert 'sheet-diagram' in html

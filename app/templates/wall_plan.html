@@ -4,13 +4,12 @@
   <summary>Wall Layout</summary>
   {% if layout %}
   <div class="wall-plan-scroll">{{ render_wall_plan(layout,item.name,item.options.get('high_end','Right'))|safe }}</div>
-  <p class="hint">{{ layout.summary|join(' · ') }}{% if layout.stair %} · High end {{ item.options.get('high_end','Right') }}{% endif %}.</p>
-  <p class="hint">MDF = shaded members · bead / moulding = secondary outlines · dado = reference line.</p>
-  {% for note in layout.notes %}<p class="hint">{{ note }}</p>{% endfor %}
+  <div class="wall-plan-key"><strong>Key</strong>{% set kinds=layout.elements|map(attribute='kind')|list %}{% if 'mdf' in kinds %}<span>Shaded = MDF</span>{% endif %}{% if 'bead' in kinds or 'frame' in kinds %}<span>Inner profile = bead / moulding</span>{% endif %}{% if 'dado' in kinds %}<span>Dado line = dado/reference</span>{% endif %}<span>Dimensions = installed geometry</span><span>Base cuts = longest required physical point</span></div>
+  <div class="opening-examples">{% for example in opening_examples(layout) %}<div><strong>{{ example.id }} · {{ example.family }}</strong><span>{{ 'Frame width' if example.family=='Frame outside' else 'Horizontal spacing' }} {{ example.width|round(2) }} mm · vertical sides {{ example.left|round(2) }} / {{ example.right|round(2) }} mm</span><small>Upper edge{% if example.upper|length>1 %} segments{% endif %}: {{ example.upper|map('round',2)|join(' + ') }} mm · lower edge{% if example.lower|length>1 %} segments{% endif %}: {{ example.lower|map('round',2)|join(' + ') }} mm</small></div>{% endfor %}</div>
   {% if layout.get('installed_components') %}
   {% include '_installed_dimensions.html' %}
   {% elif layout.get('parts') %}
-  <h4>Installed layout &amp; workshop preparation</h4>
+  <details class="secondary-details"><summary>Installed Dimensions</summary>
   <ul class="sheet-part-list wall-part-list">
     {% for part in layout.parts %}
     <li><strong>{{ part.quantity }} × {{ part.component }}</strong>
@@ -29,7 +28,7 @@
       {% for note in part.notes %}<small>{{ note }}</small>{% endfor %}
     </li>
     {% endfor %}
-  </ul>
+  </ul></details>
   {% endif %}
   {% elif item.type.startswith('DADO_') and item.subtype=='Dado' %}
   <p class="hint">Installation height is not yet set. Enter the finished-floor-to-dado-centreline height and save to show the dimensioned wall plan. Existing material demand is unchanged.</p>

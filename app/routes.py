@@ -10,6 +10,7 @@ from .models import (db, User, Customer, Quote, Room, WorkItem, Material, Pricin
                      JobMaterialState, JobPurchase, OwnedStock, OwnedStockAllocation, now)
 from .calculations.sections import TYPES, SUBTYPES, DADO_STYLES
 from .services.wall_plans import render_wall_plan
+from .services.quote_presentation import quote_presentation, opening_examples, cut_display_label
 from .services.installed_dimensions import installed_groups
 from .services.spare_material import recommendations as spare_recommendations
 from .services.dimensional_extras import strip_payload
@@ -131,7 +132,7 @@ def health():
     return {'status':'ok'}
 
 @web.app_context_processor
-def shared():return dict(installed_groups=installed_groups,cut_summary=cut_summary,types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date,render_wall_plan=render_wall_plan,prepare_stock_views=prepare_stock_views,render_sheet_rip_plan=render_sheet_rip_plan,render_linear_stock_plan=render_linear_stock_plan)
+def shared():return dict(opening_examples=opening_examples,cut_display_label=cut_display_label,installed_groups=installed_groups,cut_summary=cut_summary,types=TYPES,subtypes=SUBTYPES,cabinet_presets=CABINET_PRESETS,dado_styles=DADO_STYLES,supported_dado_styles=SUPPORTED_DADO_STYLES,dado_summary=dado_summary,dado_uses=USES,dado_rail_choices=rail_choices,statuses=STATUSES,date=date,render_wall_plan=render_wall_plan,prepare_stock_views=prepare_stock_views,render_sheet_rip_plan=render_sheet_rip_plan,render_linear_stock_plan=render_linear_stock_plan)
 
 @web.route('/setup',methods=['GET','POST'])
 def setup():
@@ -520,7 +521,7 @@ def quote_edit(quote_id):
     plan=material_plan(q)
     recommendations=stock_recommendations(q,plan,stock,
         [allocation for allocation in allocations if assigned_room(q,allocation) is not None])
-    return render_template('quote_edit.html',quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,spare_recommendations=spare_recommendations(q),today=date.today())
+    return render_template('quote_edit.html',presentation=quote_presentation(q),quote=q,material_plan=plan,customers=db.session.scalars(db.select(Customer).order_by(Customer.name)).all(),catalogue=q.snapshot['catalogue'],consumables=db.session.scalars(db.select(Consumable).where(Consumable.active.is_(True)).order_by(Consumable.label)).all(),owned_stock=stock,owned_allocations=allocations,stock_available=stock_available,stock_state=stock_state,stock_description=stock_description,stock_fits_room=stock_fits_room,stock_fits_quote=stock_fits_quote,compatible=compatible,assigned_room=assigned_room,recommendations=recommendations,spare_recommendations=spare_recommendations(q),today=date.today())
 
 @web.route('/materials',methods=['GET','POST'])
 @login_required

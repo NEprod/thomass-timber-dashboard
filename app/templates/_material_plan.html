@@ -1,13 +1,6 @@
 <div class="card material-plan">
-<div class="section-heading"><h3>Material Plan</h3><span class="pill">Grouped by room</span></div>
-<div class="material-summary-stats">
-  <div><small>Chargeable materials</small><strong>{{ quote.result.chargeable_material_cost|gbp }}</strong></div>
-  <div><small>Extra material</small><strong>{{ quote.result.extra_material_cost|gbp }}</strong></div>
-  <div><small>Still to purchase</small><strong>{{ material_plan|sum(attribute='need_to_purchase_quantity') }}</strong></div>
-</div>
+<div class="section-heading"><h3>Material to purchase</h3><span class="pill">Grouped by room</span></div>
 <p class="hint">Customer charges use the normal room material plan. Owned stock changes actual procurement only; it never makes quoted material free.</p>
-{% include 'room_cut_plan.html' %}
-{% include '_recommended_spares.html' %}
 {% for room in quote.rooms %}
   {% set room_rows = material_plan|selectattr('room_id','equalto',room.id)|rejectattr('is_quote_level')|rejectattr('is_legacy_extra')|list %}
   {% if room_rows %}<section class="material-room" aria-label="Materials for {{ room.name }}">
@@ -16,10 +9,7 @@
     {% for m in room_rows %}<tr class="material-plan-row">
       <th scope="row" data-label="Material"><strong>{{ m.label }}</strong><small>{{ 'sheets' if m.category=='mdf' else 'lengths' }} · {{ m.unit_price|gbp }} each</small></th>
       <td data-label="Calculated">{{ m.calculated_quantity }}</td>
-      <td data-label="Extra">{% if m.is_calculated_consumable %}—{% else %}<form method="post" class="material-inline-form">{{ token(quote,'set_extra_material') }}<input type="hidden" name="material_id" value="{{ m.material_id }}"><input type="hidden" name="room_id" value="{{ room.id }}"><input name="extra_quantity" aria-label="Extra quantity for {{ m.label }} in {{ room.name }}" type="number" min="0" value="{{ m.extra_quantity }}"><button class="quiet">Save</button></form><small>Whole-product extra</small>
-      {% for extra in m.get('dimensional_extras', []) %}<form method="post" class="material-inline-form">{{ token(quote,'set_dimensional_extra') }}<input type="hidden" name="state_id" value="{{ extra.state_id }}"><input type="hidden" name="extra_index" value="{{ extra.index }}"><label>Extra strip · {{ '%g'|format(extra.width_mm) }}×{{ '%g'|format(extra.length_mm) }} mm<input name="quantity" aria-label="Extra strip quantity" type="number" min="0" max="100" value="{{ extra.quantity }}" required></label><button class="quiet">Save</button></form>{% endfor %}
-      {% if m.get('dimensional_extras') %}<small>Set strip quantity to 0 to remove. Additional raw sheets: {{ m.dimensional_extra_raw_quantity }}.</small>{% endif %}
-      {% endif %}</td>
+      <td data-label="Extra">{{ m.extra_quantity }} <small>whole products{% if m.get('dimensional_extras') %} · strip extras shown in Quoted Materials{% endif %}</small></td>
       <td data-label="Total">{{ m.total_quantity }}</td>
       <td data-label="Reserved">{{ m.allocated_owned_quantity }}</td>
       <td data-label="Material to purchase">{{ m.need_to_purchase_quantity }}</td>

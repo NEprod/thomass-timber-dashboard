@@ -1,0 +1,19 @@
+<section class="card quoted-materials" id="quoted-materials"><div class="section-heading"><h3>Material Plan</h3><span class="pill">Raw stock · room-owned extras</span></div>
+{% for room in quote.rooms %}
+{% set rows=material_plan|selectattr('room_id','equalto',room.id)|rejectattr('is_quote_level')|rejectattr('is_legacy_extra')|list %}
+{% if rows %}<section class="material-room"><h4>{{ room.name }}</h4>
+<div class="table-wrap"><table class="quoted-material-table"><thead><tr><th>Material / unit</th><th>Calculated raw stock</th><th>Whole-product extra</th><th>Total raw stock</th><th>Material charge</th></tr></thead><tbody>
+{% for m in rows %}{% set unit='sheets' if m.category=='mdf' else 'stock lengths' %}<tr>
+<th data-label="Material"><strong>{{ m.label }}</strong><small>{{ unit }} · {{ m.unit_price|gbp }} each</small></th>
+<td data-label="Calculated raw stock">{{ m.calculated_quantity }} {{ unit }}</td>
+<td data-label="Whole-product extra">{% if m.is_calculated_consumable %}—{% else %}<form method="post" class="material-inline-form">{{ token(quote,'set_extra_material') }}<input type="hidden" name="material_id" value="{{ m.material_id }}"><input type="hidden" name="room_id" value="{{ room.id }}"><input name="extra_quantity" aria-label="Extra quantity for {{ m.label }} in {{ room.name }}" type="number" min="0" value="{{ m.extra_quantity }}"><button class="quiet">Save</button></form>{% endif %}</td>
+<td data-label="Total raw stock">{{ m.total_quantity }} {{ unit }}{% if m.get('dimensional_extras') %}<small>Additional raw sheets from strips: {{ m.dimensional_extra_raw_quantity }}</small>{% endif %}</td>
+<td data-label="Material charge">{{ m.chargeable_cost|gbp }}</td></tr>
+{% set preparation=presentation.workshop|selectattr('room.id','equalto',room.id)|selectattr('material_id','equalto',m.material_id)|selectattr('mode','equalto','rip')|list %}
+{% if preparation or m.get('dimensional_extras') %}<tr class="dimensional-material-row"><td colspan="5">
+{% for group in preparation %}{% for row in group.rows %}<div class="prepared-demand"><span>Calculated strips: <strong>{{ row.calculated }}</strong></span><span>Accepted spare strips: <strong>{{ row.extra }}</strong></span><strong>TOTAL STRIPS TO PREPARE: {{ row.total }} · {{ '%g'|format(row.width_mm) }}×{{ '%g'|format(row.length_mm) }} mm</strong><span>Strip cutting: {{ row.total }} × {{ group.rate|gbp }} = {{ row.cut_charge|gbp }}</span></div>{% endfor %}{% endfor %}
+{% for extra in m.get('dimensional_extras',[]) %}<form method="post" class="material-inline-form dimensional-extra-control">{{ token(quote,'set_dimensional_extra') }}<input type="hidden" name="state_id" value="{{ extra.state_id }}"><input type="hidden" name="extra_index" value="{{ extra.index }}"><label>Extra strip · {{ '%g'|format(extra.width_mm) }}×{{ '%g'|format(extra.length_mm) }} mm<input name="quantity" aria-label="Extra strip quantity" type="number" min="0" max="100" value="{{ extra.quantity }}" required></label><button class="quiet">Save</button><small>Set quantity to 0 to remove.</small></form>{% endfor %}
+</td></tr>{% endif %}
+{% endfor %}</tbody></table></div></section>{% endif %}{% endfor %}
+{% if not material_plan %}<p class="hint">Save valid work items to calculate material requirements.</p>{% endif %}
+</section>

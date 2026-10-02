@@ -1,0 +1,30 @@
+{% if not item.result.valid %}
+<div class="notice warning">{% for error in item.result.errors %}<p>{{ error }}</p>{% endfor %}<small>This item has no material demand until its measurements are valid.</small></div>
+{% else %}
+{% set g=item.result.geometry %}
+{% set requirements=presentation.requirements.get(item.id,[]) %}
+{% if requirements %}<section class="calculated-requirements"><h4>Calculated Requirements</h4>
+<ul>{% for row in requirements %}<li><strong>{{ catalogue[row.material_id].label }}</strong> · {{ row.quantity }} × {% if row.mode in ['rip','sheet'] %}{{ '%g'|format(row.width_mm) }}×{% endif %}{{ '%g'|format(row.length_mm) }} mm {{ 'calculated strips' if row.mode=='rip' else 'raw sheets' if row.mode=='sheet' else 'stock lengths' }}{% if row.shared %}<small>Includes shared room stock; these work-item totals are not additive.</small>{% endif %}</li>{% endfor %}</ul>
+</section>{% endif %}
+{% if item.type=='CABINET' %}{% include 'cabinet_results.html' %}
+{% elif item.type=='COVING' %}
+<div class="result-metrics coving-result"><div><small>Wall length</small><strong>{{ g.wall_length }} <em>mm</em></strong></div><div><small>Start / end corner</small><strong>{{ g.start_corner }} / {{ g.end_corner }}</strong></div><div><small>Finished Coving cut</small><strong>{{ g.finished_cut_length }} <em>mm</em></strong></div></div>
+{% elif not g.get('slope_angle') and g.get('square_width') is not none %}
+<div class="result-metrics"><div><small>Square dimensions</small><strong>{{ g.square_width }} × {{ g.square_height }} <em>mm</em></strong></div></div>
+{% endif %}
+{% if g.get('slope_angle') is not none %}
+<div class="stair-result"><div class="result-metrics stair-metrics"><div><small>Slope mitre</small><strong>{{ g.slope_mitre }}°</strong></div><div><small>Angled mitres — top / bottom</small><strong>{{ g.top_angle_setting }}° / {{ g.bottom_angle_setting }}°</strong></div></div>
+{% if g.get('counts') %}<p>Flat {{ g.counts.flat }} · Angled {{ g.counts.angled }} · Transition {{ g.counts.transition }}<br><small>{{ g.columns|map(attribute='type')|join(' → ') }}</small></p>{% endif %}</div>
+{% endif %}
+{% include 'wall_plan.html' %}
+{% if item.type!='CABINET' and item.result.groups %}{% include '_cut_summary.html' %}{% endif %}
+<details class="secondary-details calculation-notes"><summary>Calculation notes</summary>
+{% if g.get('slope_angle') is not none %}<p class="hint">Slope angle {{ g.slope_angle }}°. {{ g.angle_convention }}. Acute / obtuse included angles: {{ g.acute_included_angle }}° / {{ g.obtuse_included_angle }}°.</p>{% endif %}
+{% set layout=g.get('wall_layout') %}{% if layout %}<p class="hint">{{ layout.summary|join(' · ') }}.</p>{% for note in layout.notes %}<p class="hint">{{ note }}</p>{% endfor %}{% endif %}
+{% for warning in item.result.warnings %}<p class="notice warning">{{ warning }}</p>{% endfor %}
+{% if item.type=='CABINET' %}<p class="hint">Workshop {{ g.workshop_hours }} hours · installation {{ g.installation_days }} days · labour {{ item.pricing_result.labour_cost|gbp }}.</p>
+{% elif item.type=='COVING' %}<p class="hint">External allowance {{ g.external_allowance_mm }} mm · required Coving {{ item.pricing_result.required_coving_m }} m · labour {{ item.pricing_result.labour_cost|gbp }}.</p>
+{% else %}<p class="hint">Required finishes {{ '%.3f'|format(item.pricing_result.required_finish_m) }} m · item labour {{ item.pricing_result.labour_cost|gbp }}.</p>{% endif %}
+{% if g.get('frames') %}<div class="table-wrap"><table><thead><tr><th>Zone / square</th><th>Frame</th><th>Outside dimensions · mm</th></tr></thead><tbody>{% for frame in g.frames %}<tr><td>{{ frame.zone|capitalize }} {{ frame.square }}</td><td>{{ frame.layer|capitalize }}</td><td>{{ frame.width_mm }} × {{ frame.height_mm }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+</details>
+{% endif %}

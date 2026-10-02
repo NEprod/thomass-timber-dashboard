@@ -1,31 +1,29 @@
-{% if quote.result.get('room_stocks') %}
-<details class="secondary-details"><summary>Room cut plan · purchased stock, wall labels &amp; remainders</summary>
-{% for room_id, stocks in quote.result.room_stocks|groupby('room_id') %}
-<h5>{{ stocks[0].room_name }}</h5>
-{% for view in prepare_stock_views(stocks, quote.rooms) %}
-{% set stock=view.source %}{% set material=catalogue[stock.material_id] %}
-{% if view.mode == 'sheet' %}
-<h4>Sheet Cut Plan</h4>
-{% set stock=dict(stock, sheet_number=view.number, sheet_total=view.total) %}
-{% include '_sheet_plan.html' %}
-{% elif view.mode == 'rip' %}
-<h4>Workshop Preparation</h4>
-<div class="sheet-plan">
-  <div class="strip-heading"><strong>Sheet {{ view.number }} of {{ view.total }} · {{ material.label }} · {{ material.thickness_mm|round(1) }} mm</strong><span>{{ stock.stock_length_mm|int }} × {{ stock.stock_width_mm|int }} mm</span></div>
-  <div class="sheet-plan-scroll">{{ render_sheet_rip_plan(view, material)|safe }}</div>
-  <p class="hint">Prepare: {% for rip in view.segments %}Strip {{ rip.number }} · {{ rip.size_mm|round(2) }} × {{ stock.stock_length_mm|int }} mm{% if not loop.last %}; {% endif %}{% endfor %}.</p>
-  <p class="hint">{{ view.strips|length }} full-length strips · used {{ stock.used_mm|round(2) }} mm including {{ stock.kerf_loss_mm|round(2) }} mm kerf · remainder {{ stock.remainder_mm|round(2) }} mm. Theoretical remainder; confirm actual retained stock separately.</p>
-</div>
-<h4>Cut Plan</h4>
-{% for plan in view.strips %}{% set title='Strip ' ~ plan.number ~ ' · ' ~ material.label ~ ' · ' ~ plan.width_mm ~ ' mm wide' %}{% include '_stock_cut_plan.html' %}{% endfor %}
-{% else %}
-<h4>Cut Plan</h4>
-{% set plan=dict(view, kerf_loss_mm=stock.kerf_loss_mm) %}
-{% set title=material.label ~ ' · Stock Length ' ~ view.number ~ ' of ' ~ view.total %}
-{% include '_stock_cut_plan.html' %}
+{% if presentation.workshop %}
+<details class="card planning-section" id="workshop-preparation" open><summary><h3>Workshop Preparation</h3><span>Raw sheets → prepared stock</span></summary>
+{% for group in presentation.workshop %}{% set material=catalogue[group.material_id] %}
+<section class="material-room"><h4>{{ group.room.name }} · {{ material.label }}</h4>
+{% if group.mode=='rip' %}
+<div class="preparation-summary">
+{% for row in group.rows %}<div class="prepared-demand"><span>Calculated strips: <strong>{{ row.calculated }}</strong></span><span>Accepted spare strips: <strong>{{ row.extra }}</strong></span><strong>TOTAL TO PREPARE: {{ row.total }} × {{ '%g'|format(row.width_mm) }}×{{ '%g'|format(row.length_mm) }} mm</strong><span>Strip cutting: {{ row.total }} × {{ group.rate|gbp }} = <strong>{{ row.cut_charge|gbp }}</strong></span></div>{% endfor %}
+<p>Raw sheets required: <strong>{{ group.sheets }}</strong> · Additional sheets from extras: <strong>{{ group.additional_sheets }}</strong></p></div>
+{% for view in group.views %}{% set stock=view.source %}<div class="sheet-plan">
+<div class="strip-heading"><strong>Sheet {{ view.number }} of {{ view.total }} · {{ material.thickness_mm|round(1) }} mm</strong><span>{{ stock.stock_length_mm|int }} × {{ stock.stock_width_mm|int }} mm</span></div>
+<div class="sheet-plan-scroll">{{ render_sheet_rip_plan(view,material)|safe }}</div>
+<p class="hint">{{ view.prepared_strip_count }} full-length strips · used {{ stock.used_mm|round(2) }} mm including {{ stock.kerf_loss_mm|round(2) }} mm kerf · remainder {{ stock.remainder_mm|round(2) }} mm.</p></div>{% endfor %}
+{% else %}<h4>Sheet Cut Plan</h4><p class="hint">Sheet cutting: {{ group.operations }} recorded cuts × {{ group.rate|gbp }} = {{ group.cut_charge|gbp }}. Border allowance is not charged.</p>
+{% for view in group.views %}{% set stock=dict(view.source,sheet_number=view.number,sheet_total=view.total) %}{% include '_sheet_plan.html' %}{% endfor %}
+{% endif %}</section>{% endfor %}
+<p class="hint">Green = prepared stock · orange = kerf · grey = theoretical remainder. Confirm retained stock separately.</p></details>
 {% endif %}
+{% if presentation.cutting %}
+<details class="card planning-section" id="room-cut-plan"><summary><h3>Room cut plan</h3><span>Prepared stock → final components</span></summary>
+{% for group in presentation.cutting %}{% set material=catalogue[group.material_id] %}
+<section class="material-room"><h4>{{ group.room.name }} · {{ 'MDF Strip' if group.mode=='rip' else group.category|capitalize }} Cut Plan · {{ material.label }}</h4>
+{% for view in group.plans %}
+{% if group.mode=='rip' %}{% set plan=view %}{% set title='Strip ' ~ plan.number ~ ' of ' ~ plan.total ~ ' — ' ~ ('Spare · ' if plan.spare else '') ~ ('%g'|format(plan.width_mm)) ~ '×' ~ ('%g'|format(plan.stock_length_mm)) ~ ' mm' %}
+{% else %}{% set plan=dict(view,kerf_loss_mm=view.source.kerf_loss_mm) %}{% set title=group.category|capitalize ~ ' ' ~ view.number ~ ' of ' ~ view.total ~ ' — ' ~ ('%g'|format(view.stock_length_mm)) ~ ' mm' %}{% endif %}
+{% include '_stock_cut_plan.html' %}
 {% endfor %}
-{% endfor %}
-<p class="hint">Green: prepared strips / required cuts · orange: kerf · grey: theoretical remainder. Stock bars show numbered cuts; wall labels, Base cuts and site-fit Prepare lengths appear below.</p>
-</details>
+{% if group.extra_lengths %}<p class="notice">Spare stock: {{ group.extra_lengths }} × {{ material.length_mm|int }} mm whole-product extra · uncut and not assigned to job components.</p>{% endif %}
+</section>{% endfor %}</details>
 {% endif %}

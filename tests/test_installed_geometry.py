@@ -206,7 +206,9 @@ def test_exact_room_demand_repacked_without_spares_and_charge_follows_stock(cata
     stocks=[s for s in priced['room_stocks'] if s['category']=='mdf']
     assert len(stocks)==1 and sum(len(s['cuts']) for s in stocks)==7
     assert stocks[0]['remainder_mm']==502  # Seven rips, six 3mm kerfs.
-    assert priced['stock_material_cost']==18 and priced['material_cost']==54.7
+    # Approved prepared-strip pricing: seven actual rips, not nine legacy estimates.
+    assert priced['total_prepared_strips']==7 and priced['cut_cost']==14
+    assert priced['stock_material_cost']==18 and priced['material_cost']==50.7
     seen=[]
     for stock in stocks:
         for rip in stock['cuts']:

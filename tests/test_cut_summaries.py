@@ -41,9 +41,10 @@ def test_dado_square_grouping_removes_locations_but_keeps_edges_and_profiles(cat
     before = deepcopy(result)
     summary = cut_summary(result['groups'])
     rows = [r for family in summary for r in family['rows']]
-    assert len(rows) == 5  # Rail and four separately identified frame edges.
+    assert len(rows) == 4  # Rail, equivalent top/bottom pair, and separate vertical edges.
     assert sum(r['quantity'] for r in rows) == 17
-    assert sum(r['quantity']==4 for r in rows) == 4
+    assert sum(r['quantity']==4 for r in rows) == 2
+    assert sum(r['quantity']==8 for r in rows) == 1
     assert result == before
 
 

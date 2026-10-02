@@ -214,7 +214,10 @@ def test_straight_square_dimensions_and_dashboard_acceptance(app, signed_in):
     assert 'Square dimensions' in quote_page and '625.0 × 800.0' in quote_page
     assert 'Cut Summary' in quote_page and 'Room cut plan' in quote_page
     assert 'Item stock preview' not in quote_page
-    assert quote_page.count('<h4>Living room</h4>') == 1
+    quoted=quote_page.split('id="quoted-materials"')[1].split('id="quotation-total"')[0]
+    purchasing=quote_page.split('id="purchasing-admin"')[1].split('id="receipts"')[0]
+    assert quoted.count('<h4>Living room</h4>') == 1
+    assert purchasing.count('<h4>Living room</h4>') == 1
     assert 'Material to purchase' in quote_page
     assert 'Bottom dado squares' not in signed_in.get('/').get_data(as_text=True).split('Materials to buy')[1]
     with app.app_context():

@@ -133,7 +133,7 @@ def test_edit_new_finishes_persistence_snapshot_and_anchor(app,signed_in):
         assert db.session.get(Quote,qid).result['required_dado_m']==3
     page=signed_in.get(f'/quotes/{qid}').get_data(as_text=True)
     assert f'id="item-cuts-{half}"' in page and 'stair-metrics' in page
-    assert 'Top / bottom displayed settings' in page
+    assert 'Angled mitres — top / bottom' in page
     assert 'selected>45mm Dado 3m' in page
     response=post_quote(signed_in,app,qid,'edit_item',room_id=rid,item_id=half,name='Square dado',type='DADO_STRAIGHT',subtype='Dado Squares Bottom',wall_length=3000,gap_width=100,bottom_squares=4,bottom_zone_height=1000,dado_rail_id='dado-45mm-3m',dado_square_id='dado-45mm-3m',position=0)
     assert response.status_code==302

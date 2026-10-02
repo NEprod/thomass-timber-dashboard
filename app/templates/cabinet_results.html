@@ -22,10 +22,10 @@
 <small>Back front / rear from carcass rear</small>
 <strong>{{ g.back_position.front_face_from_rear_mm }} / {{ g.back_position.rear_face_from_rear_mm }} mm</strong>
 </div>{% endif %}</div>
-<p class="hint">Workshop {{ g.workshop_hours }} hours · installation {{ g.installation_days }} days · labour {{ item.pricing_result.labour_cost|gbp }}.</p>
+
 {% for door in g.get('doors', []) %}<p class="hint">{{ door.label }} · {{ door.style|capitalize }} · finished {{ door.finished_width_mm }} × {{ door.finished_height_mm }} mm · MDF outer blank {{ door.blank_width_mm }} × {{ door.blank_height_mm }} mm{% if door.style=='shaker' %} · visible opening {{ door.opening_width_mm }} × {{ door.opening_height_mm }} mm{% endif %}.</p>{% endfor %}
-<details class="cut-details" open>
-<summary>Cabinet finished parts and sheet cut blanks</summary>
+<details class="cut-details">
+<summary>Installed Dimensions · Cabinet parts and sheet cut blanks</summary>
 <div class="table-wrap">
 <table>
 <thead>
@@ -47,4 +47,4 @@
 </table>
 </div>
 </details>
-{% if item.result.groups %}<details class="cut-details" open><summary>Cabinet finished linear cuts</summary><div class="table-wrap"><table><thead><tr><th>Part</th><th>Cut length · mm</th><th>Actual width · mm</th><th>Material</th></tr></thead><tbody>{% for group in item.result.groups.values() %}{% for cut in group.cuts %}<tr><td>{{ cut.label }}</td><td>{{ cut.length_mm }}</td><td>{{ cut.width_mm }}</td><td>{{ catalogue[cut.material_id].label }}</td></tr>{% endfor %}{% endfor %}</tbody></table></div></details>{% endif %}
+{% if item.result.groups %}{% include '_cut_summary.html' %}{% endif %}

@@ -2,6 +2,6 @@
   <div class="strip-heading"><strong>{{ title }}</strong><span>{{ plan.stock_length_mm|round(2) }} mm stock · kerf {{ plan.kerf_loss_mm|round(2) }} mm · remainder {{ plan.remainder_mm|round(2) }} mm</span></div>
   <div class="sheet-plan-scroll">{{ render_linear_stock_plan(plan, title)|safe }}</div>
   <ol class="sheet-part-list">{% for segment in plan.segments %}{% set cut=segment.source %}
-    <li><strong>{{ cut.wall_name }} / {{ cut.label }}</strong> · {{ 'Base cut' if cut.get('requirement_status')=='EXACT' else 'Site-fit Prepare' if cut.get('requirement_status')=='PROVISIONAL' else 'Prepare' }} {{ cut.length_mm|round(2) }} mm{% if segment.installed_length_mm is not none %} · {{ segment.installed_reference }} {{ segment.installed_length_mm|round(2) }} mm{% endif %}</li>
+    <li><strong>{{ cut.wall_name }} / {{ cut_display_label(cut) }}</strong> · {{ 'Base cut' if cut.get('requirement_status')=='EXACT' else 'Site-fit Prepare' if cut.get('requirement_status')=='PROVISIONAL' else 'Prepare' }} {{ cut.length_mm|round(2) }} mm{% if segment.installed_length_mm is not none %} · {{ segment.installed_reference }} {{ segment.installed_length_mm|round(2) }} mm{% endif %}</li>
   {% endfor %}</ol>
 </div>

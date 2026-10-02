@@ -43,6 +43,20 @@ def render_wall_plan(layout, label, high_end='Right'):
                 tx = width - tx
             out.append(f'<text x="{tx:g}" y="{ty:g}" font-family="sans-serif" font-size="{font * .7:g}" text-anchor="middle" fill="#30312e">'
                        f'<tspan x="{tx:g}">Trim to fit</tspan><tspan x="{tx:g}" dy="{font:g}">on site</tspan></text>')
+    # Reuse the opening identity already attached to each canonical polygon.
+    for element in layout['elements']:
+        if element['kind'] != 'opening' and not (element['kind'] == 'frame' and
+                element['label'].startswith('Bottom square ') and
+                element['label'].removeprefix('Bottom square ').isdigit()):
+            continue
+        identity = element['label'].split(' · ')[0]
+        xs, ys = zip(*element['points'])
+        tx, ty = (min(xs) + max(xs)) / 2, height - (min(ys) + max(ys)) / 2
+        if mirrored:
+            tx = width - tx
+        out.append(f'<text data-opening="{escape(identity, quote=True)}" x="{tx:g}" y="{ty:g}" '
+                   f'font-family="sans-serif" font-size="{font * .7:g}" text-anchor="middle" fill="#30312e">'
+                   f'{escape(identity.removeprefix("Opening ").removeprefix("Bottom square "))}</text>')
     # Only display-space annotation placement lives here. Every measured endpoint
     # and value is already supplied by the calculator; labels are never mirrored.
     for dimension in layout['dimensions']:
