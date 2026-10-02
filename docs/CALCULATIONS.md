@@ -62,7 +62,7 @@ Each work-item group is length-packed independently, preserving historical group
 
 Required material is the sum of actual cuts, including the documented workshop allowances. New purchase units are MDF sheets or bead stock lengths. Results separately retain allocated strip length, length kerf, length remainder, purchased MDF area and sheet rip remainder. No owned stock is allocated yet; `allocated_existing_mm` is explicitly zero. Material cost is purchase units × the saved unit price. Work-item pricing contains installed demand and labour; shared sheet purchasing is priced at quote level to avoid charging the same pooled sheet twice.
 
-Historical pricing: panelling and finish labour use their respective per-metre rates; mastic is `ceil(required_total_m / coverage × 1.5)`; nonempty MDF cutting is `(strip_count + 1) × cutting_rate`; delivery applies when material exists. Take-home is the greater of per-metre labour and days/hours allowance. The total rounds upward to £10. Monetary components are rounded to pennies. No tax policy or additional invoicing behaviour is inferred.
+Historical pricing: panelling and finish labour use their respective per-metre rates; mastic is `ceil(required_total_m / coverage × 1.5)`; MDF strip cutting is `total prepared full-length MDF strips × saved cutting_rate`, using the packed rip-sheet records also rendered by Workshop Preparation (including accepted dimensional strips; excluding directly nested Cabinet parts and whole-product extras); delivery applies when material exists. Take-home is the greater of per-metre labour and days/hours allowance. The total rounds upward to £10. Monetary components are rounded to pennies. No tax policy or additional invoicing behaviour is inferred.
 
 Catalogue and pricing are JSON snapshots on each quote, independent of editable current database rows. Explicit refresh recalculates all items with the new snapshot. A quote revision counter prevents stale browser tabs overwriting newer saves. Generic string work-item types and JSON inputs/options/results permit later calculators without redesigning quote ownership.
 
@@ -95,7 +95,7 @@ does not reinterpret existing records.
 
 Preview and acceptance use the same side-effect-free room-demand adapter and
 unchanged room packing algorithms. Extra demand is not a Work Item and never
-adds labour, mastic, cut charges or installed components. Raw stock cost changes
+adds labour, mastic or installed components. Accepted dimensional strips do increase strip-cut charges because they are physically prepared. Raw stock cost changes
 only when repacking changes sheet count. Whole-product extras retain their
 existing per-product charging. Owned stock still affects actual procurement
 only. Spare strips fitting current sheets consume theoretical remainder:

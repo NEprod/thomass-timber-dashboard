@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import math
 from .packing import pack, number
 from .materials import kerf_for
+from .preparation import prepared_strip_count
 
 def money(value):
     return float(Decimal(str(value)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
@@ -28,8 +29,8 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
             measured_coving+=result['geometry']['wall_length']
         for name,group in result['groups'].items():
             product=catalogue[group['material_id']]
-            # Retain the historical rip/cut-charge basis for this item. These
-            # temporary strips are not its workshop stock or purchase plan.
+            # Retain legacy aggregate material metrics. These temporary strips
+            # are not the room workshop plan or its cutting-charge basis.
             material_kerf=kerf_for(product,config)
             strips=pack(group['cuts'],product['length_mm'],material_kerf)
             row=materials.setdefault(group['material_id'],dict(material_id=product['id'],label=product['label'],category=product['category'],required_mm=0,allocated_existing_mm=0,new_purchase_units=0,strip_stock_mm=0,kerf_loss_mm=0))
@@ -49,7 +50,7 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
             else:
                 row['new_purchase_units']+=len(strips)
                 if not is_cabinet: installed_finish+=required
-    cost=0; total_rips=0
+    cost=0
     for key,row in materials.items():
         product=catalogue[key]
         if product['category']=='dado':
@@ -61,7 +62,7 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
             # Historical slat-first ripping, with one bounded packing representation.
             demand=sorted(rip_demands[key],key=lambda d:d['role']=='ledge')
             row['boards']=pack(demand,product['width_mm'],config['kerf'],descending=False)
-            row['new_purchase_units']=len(row['boards']);total_rips+=len(demand)
+            row['new_purchase_units']=len(row['boards'])
             row['purchased_area_m2']=row['new_purchase_units']*product['length_mm']*product['width_mm']/1e6
             row['rip_remainder_area_m2']=sum(b['remainder_mm'] for b in row['boards'])*product['length_mm']/1e6
         row['required_m']=round(row.pop('required_mm')/1000,6)
@@ -72,24 +73,32 @@ def aggregate(results, catalogue, config, days=0, hours=0, *, rooms=None):
     slat_m,finish_m,dado_m=installed_slat/1000,installed_finish/1000,installed_dado/1000
     mastic=math.ceil((slat_m+finish_m+dado_m+2*measured_coving/1000)/config['mastic_linear_coverage']*1.5) if has_work else 0
     mastic_cost=money(mastic*config['mastic_unit_price'])
-    cut_cost=money((total_rips+1)*config['cut_cost_per_strip']) if total_rips else 0
     delivery=config['delivery_cost'] if has_work else 0
-    material_cost=money(cost+mastic_cost+cut_cost+delivery)
     coving_m=installed_coving/1000
     labour=money(slat_m*config['mdf_slat_per_m_gbp']+finish_m*config['bead_per_m_gbp']+dado_m*config['dado_per_m_gbp']+coving_m*config.get('coving_per_m_gbp',6.5)+cabinet_hours*config['hourly_rate']+cabinet_days*config['day_rate'])
     time_allowance=money(days*config['day_rate']+hours*config['hourly_rate']) if has_work else 0
     take_home=max(labour,time_allowance)
     valid=all(r.get('valid') for r in results)
+    from .room_stock import pack_rooms
     if rooms is not None:
-        from .room_stock import pack_rooms
         room_materials, room_stocks = pack_rooms(rooms, catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10),
             sheet_trim=config.get('sheet_edge_trim',10), sheet_kerf=config.get('sheet_kerf',3))
         materials = {row['material_id']: row for row in room_materials}
         cost = money(sum(row['cost'] for row in room_materials))
-        material_cost = money(cost + mastic_cost + cut_cost + delivery)
+        preparation_stocks = room_stocks
     else:
         room_stocks = []
+        # Callers without room ownership still use the same packer for the
+        # prepared-strip charge; their legacy material metrics stay unchanged.
+        _, preparation_stocks = pack_rooms([dict(id=None, name='', items=[
+            dict(id=str(i), name='', result=result) for i, result in enumerate(results)])],
+            catalogue, config['kerf'], coving_kerf=config.get('coving_kerf',10),
+            sheet_trim=config.get('sheet_edge_trim',10), sheet_kerf=config.get('sheet_kerf',3))
+    total_prepared_strips = prepared_strip_count(preparation_stocks)
+    cut_cost = money(total_prepared_strips * config['cut_cost_per_strip'])
+    material_cost = money(cost + mastic_cost + cut_cost + delivery)
     return dict(valid=valid,materials=list(materials.values()),room_stocks=room_stocks,required_panelling_m=round(slat_m,6),required_finish_m=round(finish_m+dado_m,6),required_dado_m=round(dado_m,6),required_coving_m=round(coving_m,6),
-                stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,delivery_cost=delivery,
+                stock_material_cost=money(cost),mastic_units=mastic,mastic_cost=mastic_cost,cut_cost=cut_cost,
+                total_prepared_strips=total_prepared_strips,strip_cut_rate=config['cut_cost_per_strip'],delivery_cost=delivery,
                 material_cost=material_cost,labour_cost=labour,time_allowance=time_allowance,take_home=take_home,
                 final_price=math.ceil(money(material_cost+take_home)/10)*10 if valid else None)

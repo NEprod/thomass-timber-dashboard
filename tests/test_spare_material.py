@@ -77,8 +77,11 @@ def test_accept_individual_strip_quantities_and_no_fake_sheet_charge(app,signed_
         q=db.session.get(Quote,qid);state=q.material_states[0]
         assert state.extra_quantity==0 and state.dimensional_extras[0]['quantity']==quantity
         assert rip_count(q)==7+quantity and len(q.result['room_stocks'])==1
-        assert q.result['chargeable_material_cost']==before['chargeable_material_cost']
-        for key in ('mastic_units','mastic_cost','cut_cost','labour_cost','take_home','delivery_cost'):
+        strip_charge=quantity*q.snapshot['pricing']['cut_cost_per_strip']
+        assert q.result['chargeable_material_cost']==before['chargeable_material_cost']+strip_charge
+        assert q.result['cut_cost']==before['cut_cost']+strip_charge
+        assert q.result['stock_material_cost']==before['stock_material_cost']
+        for key in ('mastic_units','mastic_cost','labour_cost','take_home','delivery_cost'):
             assert q.result[key]==before[key]
         assert q.rooms[0].items[0].result==cuts
         remaining=recommendations(q)
@@ -96,7 +99,7 @@ def test_sheet_threshold_cost_remove_and_prep_svg(app,signed_in):
         price=q.snapshot['catalogue']['mdf-9mm']['price']
         assert q.result['dimensional_extra_cost']==price
         assert q.result['extra_material_cost']==price
-        assert q.result['chargeable_material_cost']==before['chargeable_material_cost']+price
+        assert q.result['chargeable_material_cost']==before['chargeable_material_cost']+price+6*q.snapshot['pricing']['cut_cost_per_strip']
         row=material_plan(q)[0]
         assert row['calculated_quantity']==1 and row['total_quantity']==2 and row['extra_quantity']==0
         assert row['need_to_purchase_quantity']==2
@@ -187,6 +190,7 @@ def test_old_whole_product_extras_unchanged(app,signed_in):
         q=make_quote();base=deepcopy(q.result);state=JobMaterialState(room_id=q.rooms[0].id,material_id='mdf-9mm',extra_quantity=2)
         q.material_states.append(state);reaggregate(q);db.session.commit();qid=q.id
         assert state.dimensional_extras is None and rip_count(q)==7
+        assert q.result['cut_cost']==base['cut_cost']
         price=q.snapshot['catalogue']['mdf-9mm']['price']
         assert q.result['extra_material_cost']==2*price
         assert q.result['chargeable_material_cost']==base['chargeable_material_cost']+2*price

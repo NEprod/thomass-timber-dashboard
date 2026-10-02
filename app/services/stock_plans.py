@@ -5,6 +5,7 @@ and every sheet/strip/cut retains its original assignment and source ID.
 """
 from collections import Counter
 from html import escape
+from ..calculations.preparation import stock_mode, prepared_strip_count
 
 
 def _segments(cuts, kerf_loss, dimension='length_mm'):
@@ -32,7 +33,7 @@ def prepare_stock_views(stocks, rooms=()):
                     for cut_id in ids:
                         installed[cut_id] = part['installed_length_mm']
     def stock_key(stock):
-        mode = stock.get('packing_kind', 'rip' if stock['category'] == 'mdf' else 'linear')
+        mode = stock_mode(stock)
         # Preserve the accepted Cabinet numbering across all nested materials.
         return (None if mode == 'sheet' else stock['material_id'], mode)
 
@@ -40,10 +41,11 @@ def prepare_stock_views(stocks, rooms=()):
     numbers, strip_numbers = Counter(), Counter()
     views = []
     for stock in stocks:
-        mode = stock.get('packing_kind', 'rip' if stock['category'] == 'mdf' else 'linear')
+        mode = stock_mode(stock)
         key = stock_key(stock)
         numbers[key] += 1
-        view = dict(source=stock, mode=mode, number=numbers[key], total=totals[key], strips=[])
+        view = dict(source=stock, mode=mode, number=numbers[key], total=totals[key], strips=[],
+                    prepared_strip_count=prepared_strip_count([stock]))
         if mode == 'sheet':
             views.append(view)
             continue
